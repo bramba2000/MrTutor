@@ -2,69 +2,44 @@ package main
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 	"fmt"
-	"mrtutor-api/config"
-	"net"
-	"net/http"
+	"mrtutor-api/db"
 	"os"
 	"os/signal"
-	"sync/atomic"
 	"syscall"
 )
 
-var isShuttingDownServer atomic.Bool
+const (
+	SetupServerErrorExitCode = iota + 1
+	ServerClosedUnexpectedlyExitCode
+	ServerShutdownErrorExitCode
+	SetupDbErrorExitCode
+)
 
-func newServer(ctx context.Context) *http.Server {
-	mux := http.NewServeMux()
-	addRoutes(mux)
-
-	handler := applyMiddleware(mux, loggingMiddleware)
-
-	return &http.Server{
-		Addr:        net.JoinHostPort("", config.Port),
-		BaseContext: func(_ net.Listener) context.Context { return ctx },
-		Handler:     handler,
+func setupDb() *sql.DB {
+	// Initialize the database connection
+	db, err := db.New()
+	if err != nil {
+		fmt.Errorf("failed to set up database: %v", err)
+		os.Exit(SetupDbErrorExitCode)
 	}
-}
-
-func startServer(server *http.Server) {
-	fmt.Println("Starting server at " + server.Addr)
-	err := server.ListenAndServe()
-	if !errors.Is(err, http.ErrServerClosed) {
-		fmt.Printf("Server error: %v\n", err)
-	}
-}
-
-func shutdownServer(server *http.Server, stopRequestContext context.CancelFunc) {
-	isShuttingDownServer.Store(true)
-	fmt.Println("Shutting down server...")
-
-	shutdownContext, stopShutdown := context.WithTimeout(context.Background(), config.ShutdownTimeout)
-	defer stopShutdown()
-
-	if err := server.Shutdown(shutdownContext); err != nil {
-		fmt.Printf("Error during server shutdown: %v\n", err)
-	} else {
-		fmt.Println("Server shutdown completed successfully.")
-	}
-	stopRequestContext()
-}
-
-func runServer(ctx context.Context, stop context.CancelFunc) {
-	ongoingCtx, stopOngoingGracefully := context.WithCancel(context.Background())
-	server := newServer(ongoingCtx)
-
-	go startServer(server)
-
-	<-ctx.Done()
-	stop()
-	shutdownServer(server, stopOngoingGracefully)
+	return db
 }
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	runServer(ctx, stop)
+	// Register dependencies
+	server, cancelServerCtx := newServer()
+	db := setupDb()
+
+	// Start the server in a separate goroutine
+	go startServer(server)
+
+	<-ctx.Done()
+	// Clean up resources and gracefully shut down the server
+	stop()
+	shutdownServer(server, cancelServerCtx)
 }
