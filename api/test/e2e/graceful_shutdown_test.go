@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-func checkHealty(t *testing.T) error {
-	resp, err := makeRequest(t, http.MethodGet, config.ApiBasePath+"/health", http.NoBody)
+func checkHealthy(t *testing.T, host string) error {
+	resp, err := doRequest(t, host, http.MethodGet, config.ApiBasePath+"/health", http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to make health request: %w", err)
 	}
@@ -22,10 +22,11 @@ func checkHealty(t *testing.T) error {
 }
 
 func TestGracefulShutdown(t *testing.T) {
-	cmd := startApplication(t)
+	t.Parallel()
+	host, cmd := startApplication(t)
 
 	err := Retry(func() error {
-		return checkHealty(t)
+		return checkHealthy(t, host)
 	}, 5, 500*time.Millisecond, 3*time.Second)
 	if err != nil {
 		t.Fatalf("Application did not start successfully: %v", err)
@@ -37,7 +38,7 @@ func TestGracefulShutdown(t *testing.T) {
 	}
 
 	err = Retry(func() error {
-		if err := checkHealty(t); err == nil {
+		if err := checkHealthy(t, host); err == nil {
 			return fmt.Errorf("application is still healthy, expected to be shutting down")
 		}
 		return nil

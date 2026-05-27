@@ -3,10 +3,7 @@ package e2e
 import (
 	"flag"
 	"fmt"
-	"io"
-	"mrtutor-api/config"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -19,8 +16,6 @@ const (
 )
 
 var e2e = flag.Bool("e2e", false, "run e2e tests")
-
-var host = "http://" + net.JoinHostPort("127.0.0.1", config.Port)
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -54,12 +49,19 @@ func cleanupApplication() {
 	}
 }
 
-func startApplication(t testing.TB) *exec.Cmd {
+// startApplication starts the app on a free port and returns its base URL and the process handle.
+// The process is killed automatically via t.Cleanup, so callers only need cmd when sending signals.
+func startApplication(t testing.TB) (host string, cmd *exec.Cmd) {
 	t.Helper()
-	cmd := exec.Command("./" + execName)
+
+	port := freePort(t)
+	host = "http://" + net.JoinHostPort("127.0.0.1", port)
+
+	cmd = exec.Command("./" + execName)
+	cmd.Env = append(os.Environ(), "PORT="+port)
+
 	dir := t.ArtifactDir()
 	filename := fmt.Sprintf("%s_%s_output.txt", time.Now().Format("20060102150405"), t.Name())
-
 	file, err := os.Create(path.Join(dir, filename))
 	if err != nil {
 		t.Logf("Impossible to write artifacts %v", err)
@@ -69,25 +71,8 @@ func startApplication(t testing.TB) *exec.Cmd {
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("failed to start application: %v\n", err)
 	}
-	time.Sleep(1 * time.Second)
 	t.Cleanup(func() {
 		cmd.Process.Kill()
 	})
-	return cmd
-}
-
-func must[T any](res T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return res
-}
-
-func makeRequest(t testing.TB, method, path string, body io.Reader) (*http.Response, error) {
-	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), method, host+path, body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	return http.DefaultClient.Do(req)
+	return host, cmd
 }
