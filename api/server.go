@@ -43,7 +43,7 @@ func startServer(server *http.Server) {
 // shutdownServer gracefully shuts down the HTTP server, allowing in-flight requests to complete before stopping the server.
 func shutdownServer(server *http.Server, stopRequestContext context.CancelFunc) {
 	isShuttingDownServer.Store(true)
-	fmt.Println("Shutting down server...")
+	fmt.Println("\nShutting down server...")
 
 	shutdownContext, stopShutdown := context.WithTimeout(context.Background(), config.ShutdownTimeout)
 	defer stopShutdown()
