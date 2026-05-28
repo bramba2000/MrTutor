@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"log/slog"
 	"mrtutor-api/config"
 	"mrtutor-api/db"
 	"mrtutor-api/db/migrations"
@@ -22,9 +22,11 @@ const (
 	SetupDbErrorExitCode
 )
 
-func setupDb() *sql.DB {
+func setupDb(logger *slog.Logger) *sql.DB {
 	var dbInstance *sql.DB
 	var err error
+
+	logger = logger.With("component", "setup")
 
 	if config.Mode == config.TEST {
 		dbInstance, err = db.NewInMemory()
@@ -33,7 +35,7 @@ func setupDb() *sql.DB {
 	}
 
 	if err != nil {
-		fmt.Printf("failed to set up database: %v\n", err)
+		logger.Error("failed to set up database", "error", err)
 		os.Exit(SetupDbErrorExitCode)
 	}
 
@@ -41,12 +43,12 @@ func setupDb() *sql.DB {
 		m, err := migrations.NewWithDb(dbInstance)
 
 		if err != nil {
-			fmt.Printf("failed to initialize database migrations: %v", err)
+			logger.Error("failed to create migration instance", "error", err)
 			os.Exit(SetupDbErrorExitCode)
 		}
 
 		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-			fmt.Printf("failed to run database migrations: %v", err)
+			logger.Error("failed to run database migrations", "error", err)
 			os.Exit(SetupDbErrorExitCode)
 		}
 	}
@@ -58,16 +60,18 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	logger := newLogger()
+
 	// Register dependencies
-	server, cancelServerCtx := newServer()
-	db := setupDb()
+	server, cancelServerCtx := newServer(logger)
+	db := setupDb(logger)
 	defer db.Close()
 
 	// Start the server in a separate goroutine
-	go startServer(server)
+	go startServer(logger, server)
 
 	<-ctx.Done()
 	// Clean up resources and gracefully shut down the server
 	stop()
-	shutdownServer(server, cancelServerCtx)
+	shutdownServer(logger, server, cancelServerCtx)
 }

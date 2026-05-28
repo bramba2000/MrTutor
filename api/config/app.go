@@ -2,6 +2,7 @@ package config
 
 import (
 	"cmp"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -15,7 +16,8 @@ const (
 )
 
 var (
-	Mode AppMode = cmp.Or(parseAppMode(os.Getenv("APP_ENV")), DEV)
+	Mode     AppMode    = cmp.Or(parseAppMode(os.Getenv("APP_ENV")), DEV)
+	LogLevel slog.Level = cmp.Or(parseLogLevel(os.Getenv("LOG_LEVEL")), slog.LevelInfo)
 )
 
 func parseAppMode(mode string) AppMode {
@@ -34,4 +36,20 @@ func parseAppMode(mode string) AppMode {
 		return ""
 	}
 	return ""
+}
+
+func parseLogLevel(level string) slog.Level {
+	level = strings.ToLower(level)
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
