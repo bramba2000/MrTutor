@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"mrtutor-api/config"
@@ -15,18 +16,16 @@ var isShuttingDownServer atomic.Bool
 
 // newServer creates and configures a new HTTP server with the necessary routes and middleware.
 // It returns the configured server and a cancel function to close the server's base context when needed.
-func newServer(logger *slog.Logger) (*http.Server, context.CancelFunc) {
+func newServer(logger *slog.Logger, db *sql.DB) (*http.Server, context.CancelFunc) {
 	ctx, stop := context.WithCancel(context.Background())
 
 	mux := http.NewServeMux()
-	addRoutes(mux)
-
-	handler := applyMiddleware(mux, newLoggingMiddleware(logger))
+	addRoutes(mux, logger, db)
 
 	return &http.Server{
 		Addr:        net.JoinHostPort("", config.Port),
 		BaseContext: func(_ net.Listener) context.Context { return ctx },
-		Handler:     handler,
+		Handler:     mux,
 	}, stop
 }
 

@@ -10,7 +10,12 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO "users" ("email", "username", "password") VALUES (?1, ?2, ?3) RETURNING id, username, email, password, created_at, modified_at
+INSERT INTO
+    users (email, username, password)
+VALUES
+    (?1, ?2, ?3)
+RETURNING
+    id, username, email, password, created_at, modified_at
 `
 
 type CreateUserParams struct {
@@ -35,17 +40,20 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
-SELECT id, username, email, password, created_at, modified_at FROM "users" WHERE "email" = ?1 OR "username" = ?2 LIMIT 1
+SELECT
+    id, username, email, password, created_at, modified_at
+FROM
+    users
+WHERE
+    email = ?1
+    OR username = ?1
+LIMIT
+    1
 `
 
-type GetUserByEmailOrUsernameParams struct {
-	Email    string `json:"email"`
-	Username string `json:"username"`
-}
-
 // GetUserByEmailOrUsername retrieves user by email or username
-func (q *Queries) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Email, arg.Username)
+func (q *Queries) GetUserByEmailOrUsername(ctx context.Context, input string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, input)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -59,7 +67,14 @@ func (q *Queries) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEma
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, username, email, password, created_at, modified_at FROM "users" WHERE "id" = ?1 LIMIT 1
+SELECT
+    id, username, email, password, created_at, modified_at
+FROM
+    users
+WHERE
+    id = ?1
+LIMIT
+    1
 `
 
 // GetUserById retrieves user by id
@@ -78,7 +93,16 @@ func (q *Queries) GetUserById(ctx context.Context, id int64) (User, error) {
 }
 
 const updateUser = `-- name: UpdateUser :one
-UPDATE "users" SET "email" = ?1, "username" = ?2, "password" = ?3, "modified_at" = datetime() WHERE "id" = ?4 RETURNING id, username, email, password, created_at, modified_at
+UPDATE users
+SET
+    email = ?1,
+    username = ?2,
+    password = ?3,
+    modified_at = datetime()
+WHERE
+    id = ?4
+RETURNING
+    id, username, email, password, created_at, modified_at
 `
 
 type UpdateUserParams struct {

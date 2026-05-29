@@ -1,0 +1,6 @@
+{
+    "$schema": "https://raw.githubusercontent.com/sql-formatter-org/sql-formatter/refs/heads/master/schema.json",
+    "language": "sqlite",
+    "tabWidth": 4,
+    "keywordCase": "upper"
+}

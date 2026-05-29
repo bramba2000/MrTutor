@@ -37,20 +37,33 @@ func IsValidEmail(email string) bool {
 	return matched
 }
 
+var (
+	passwordRegex  = regexp.MustCompile(`^[A-Za-z\d@#$%^&!?]{8,72}$`)
+	lowercaseRegex = regexp.MustCompile(`[a-z]`)
+	uppercaseRegex = regexp.MustCompile(`[A-Z]`)
+	numberRegex    = regexp.MustCompile(`\d`)
+	specialRegex   = regexp.MustCompile(`[@#$%^&!?]`)
+)
+
 // IsValidPassword checks if the password meets the criteria: between 8 and 72 characters long and
 // contains at least one lowercase and uppercase letter, one number and at least one special character
-func IsValidPassword(password string) bool {
-	// Password must be at least 8 characters long and contain at least one letter and one number
-	const passwordRegex = `^[A-Za-z\d@#$%^&!?]{8,}$`
-	matched, err := regexp.MatchString(passwordRegex, password)
-	if err != nil || !matched {
-		return false
+func IsValidPassword(password string) string {
+	if !passwordRegex.MatchString(password) {
+		return "password must be between 8 and 72 characters long and contain only letters, numbers and special characters @#$%^&!?"
 	}
-	hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(password)
-	hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(password)
-	hasNumber := regexp.MustCompile(`\d`).MatchString(password)
-	hasSpecial := regexp.MustCompile(`[@#$%^&!?]`).MatchString(password)
-	return hasLowercase && hasNumber && hasSpecial && hasUppercase
+	if !lowercaseRegex.MatchString(password) {
+		return "password must contain at least one lowercase letter"
+	}
+	if !uppercaseRegex.MatchString(password) {
+		return "password must contain at least one uppercase letter"
+	}
+	if !numberRegex.MatchString(password) {
+		return "password must contain at least one number"
+	}
+	if !specialRegex.MatchString(password) {
+		return "password must contain at least one special character (@#$%^&!?)"
+	}
+	return ""
 }
 
 // Required checks if a field is not empty after trimming whitespace

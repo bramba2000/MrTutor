@@ -61,10 +61,11 @@ func main() {
 	defer stop()
 
 	logger := newLogger()
+	logger.Debug("starting server", "mode", config.Mode)
 
 	// Register dependencies
-	server, cancelServerCtx := newServer(logger)
 	db := setupDb(logger)
+	server, cancelServerCtx := newServer(logger, db)
 	defer db.Close()
 
 	// Start the server in a separate goroutine

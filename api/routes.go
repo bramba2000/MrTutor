@@ -1,7 +1,10 @@
 package main
 
 import (
+	"database/sql"
+	"log/slog"
 	"mrtutor-api/config"
+	"mrtutor-api/features/user"
 	"net/http"
 	"strings"
 )
@@ -15,7 +18,7 @@ func healthHandler() http.Handler {
 	})
 }
 
-func addRoutes(mux *http.ServeMux) {
+func addRoutes(mux *http.ServeMux, logger *slog.Logger, db *sql.DB) {
 	internalMux := http.NewServeMux()
 	internalMux.Handle("/health", healthHandler())
 
@@ -29,5 +32,12 @@ func addRoutes(mux *http.ServeMux) {
 		return
 	}
 
-	mux.Handle(basePath+"/", http.StripPrefix(basePath, internalMux))
+	user.NewModule(db, logger).RegisterRoutes(internalMux)
+
+	// Apply global middleware to all routes under the base path
+	handler := applyMiddleware(
+		http.StripPrefix(basePath, internalMux),
+		newLoggingMiddleware(logger),
+	)
+	mux.Handle(basePath+"/", handler)
 }

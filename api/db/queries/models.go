@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+type Session struct {
+	UserID         int64     `json:"user_id"`
+	Token          string    `json:"token"`
+	AbsoluteExpiry time.Time `json:"absolute_expiry"`
+	IdleExpiry     time.Time `json:"idle_expiry"`
+}
+
 type User struct {
 	ID         int64     `json:"id"`
 	Username   string    `json:"username"`

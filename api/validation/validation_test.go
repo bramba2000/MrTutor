@@ -46,7 +46,7 @@ func TestValidPassword(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			valid := validation.IsValidPassword(tc.password)
-			if valid != tc.valid {
+			if tc.valid != (valid == "") {
 				t.Errorf("validatePassword(%q) got = %v, wantErr %v", tc.password, valid, tc.valid)
 			}
 		})
