@@ -13,7 +13,7 @@ import (
 
 // writeError maps domain errors to HTTP status codes and writes the error response.
 func writeError(w http.ResponseWriter, err error) {
-	if validationErr, ok := errors.AsType[*validation.ValidationError](err); ok {
+	if validationErr, ok := errors.AsType[*validation.Error](err); ok {
 		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
 	} else if notFoundErr, ok := errors.AsType[apierrors.NotFoundError](err); ok {
@@ -27,9 +27,9 @@ func writeError(w http.ResponseWriter, err error) {
 	}
 }
 
-// Handler wires a decode → service → encode pipeline into an http.Handler.
+// NewHandler wires a decode → service → encode pipeline into an http.NewHandler.
 // A decode failure produces 400; service errors are mapped by writeError; encode failures produce 500.
-func Handler[In, Out any](
+func NewHandler[In, Out any](
 	decode func(*http.Request) (In, error),
 	fn func(context.Context, In) (Out, error),
 	encode func(http.ResponseWriter, Out) error,
@@ -48,6 +48,28 @@ func Handler[In, Out any](
 		}
 
 		if err := encode(w, out); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
+}
+
+func NewNoOutputHandler[In any](
+	decode func(*http.Request) (In, error),
+	fn func(context.Context, In) error,
+	writer func(http.ResponseWriter) error,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		in, err := decode(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		err = fn(r.Context(), in)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		if err := writer(w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

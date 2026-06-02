@@ -24,7 +24,7 @@ type TestCase[In, Out any] struct {
 
 func (tc TestCase[In, Out]) Run(t *testing.T) {
 	t.Parallel()
-	handler := httpbind.Handler(
+	handler := httpbind.NewHandler(
 		tc.decode,
 		tc.fn,
 		tc.encode,
@@ -139,7 +139,7 @@ func TestHandler(t *testing.T) {
 				encode: func(w http.ResponseWriter, s struct{}) error { return nil },
 				decode: func(r *http.Request) (struct{}, error) { return struct{}{}, nil },
 				fn: func(ctx context.Context, s struct{}) (struct{}, error) {
-					return struct{}{}, &validation.ValidationError{
+					return struct{}{}, &validation.Error{
 						Problems: []string{
 							"invalid params",
 							"invalid username",
