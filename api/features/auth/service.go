@@ -48,6 +48,10 @@ func (s *serviceImpl) Login(ctx context.Context, req LoginRequest) (string, erro
 
 // Logout implements [Service].
 func (s *serviceImpl) Logout(ctx context.Context, sessionToken string) error {
+	if sessionToken == "" {
+		s.logger.Debug("Logout called with empty session token")
+		return nil
+	}
 	return s.sessionStore.DeleteSession(ctx, sessionToken)
 }
 

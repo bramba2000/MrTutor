@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-//go:generate go tool moq -out moq_test.go . principalRepository sessionStore
+//go:generate go tool moq -out service_mock_test.go . principalRepository sessionStore
 
 func TestService(t *testing.T) {
 	t.Run("Register", func(t *testing.T) {
