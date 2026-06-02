@@ -14,7 +14,7 @@ func checkHealthy(t *testing.T, host string) error {
 	if err != nil {
 		return fmt.Errorf("failed to make health request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
