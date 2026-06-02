@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	apierrors "mrtutor-api/errors"
+	apierrors "mrtutor/api/errors"
 	"testing"
 )
 

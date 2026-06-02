@@ -2,7 +2,7 @@ package main
 
 import (
 	"log/slog"
-	"mrtutor-api/config"
+	"mrtutor/api/config"
 	"os"
 )
 

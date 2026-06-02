@@ -6,10 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	apierrors "mrtutor-api/errors"
-	"mrtutor-api/validation"
+	apierrors "mrtutor/api/errors"
+	"mrtutor/api/validation"
 	"net/http"
 )
+
+type Validable interface {
+	Validate() error
+}
 
 // writeError maps domain errors to HTTP status codes and writes the error response.
 func writeError(w http.ResponseWriter, err error) {
@@ -40,8 +44,16 @@ func NewHandler[In, Out any](
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		ctx := r.Context()
+		if validable, ok := any(in).(Validable); ok {
+			if err := validable.Validate(); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			ctx = context.WithValue(ctx, "validated", true)
+		}
 
-		out, err := fn(r.Context(), in)
+		out, err := fn(ctx, in)
 		if err != nil {
 			writeError(w, err)
 			return
@@ -63,6 +75,7 @@ func NewNoOutputHandler[In any](
 		in, err := decode(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 		err = fn(r.Context(), in)
 		if err != nil {

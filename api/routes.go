@@ -3,8 +3,8 @@ package main
 import (
 	"database/sql"
 	"log/slog"
-	"mrtutor-api/config"
-	"mrtutor-api/features/auth"
+	"mrtutor/api/config"
+	"mrtutor/api/features/auth"
 	"net/http"
 	"strings"
 )

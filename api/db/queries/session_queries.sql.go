@@ -99,7 +99,9 @@ FROM
 JOIN
     sessions ON users.id = sessions.user_id
 WHERE
-    sessions.token = ?1
+    sessions.token = ?1 AND
+    sessions.absolute_expiry > datetime('now') AND
+    sessions.idle_expiry > datetime('now')
 `
 
 // GetUserBySessionId retrieves a user by session token

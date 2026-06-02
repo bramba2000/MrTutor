@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
-	"mrtutor-api/validation"
+	"mrtutor/api/validation"
 	"net/http"
 	"time"
 
@@ -16,7 +16,7 @@ type Principal struct {
 	ID             int64
 	Username       string
 	Email          string
-	HashedPassword string
+	HashedPassword string `json:"-"`
 	CreateAt       time.Time
 	ModifiedAt     time.Time
 }

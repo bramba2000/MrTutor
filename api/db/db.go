@@ -2,7 +2,7 @@ package db
 
 import (
 	"database/sql"
-	"mrtutor-api/config"
+	"mrtutor/api/config"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"

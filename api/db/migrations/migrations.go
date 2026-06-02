@@ -3,7 +3,7 @@ package migrations
 import (
 	"database/sql"
 	"embed"
-	"mrtutor-api/db"
+	"mrtutor/api/db"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"

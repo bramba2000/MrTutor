@@ -1,7 +1,7 @@
 package validation_test
 
 import (
-	"mrtutor-api/validation"
+	"mrtutor/api/validation"
 	"testing"
 )
 

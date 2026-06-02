@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"mrtutor-api/db/migrations"
+	"mrtutor/api/db/migrations"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"

@@ -1,6 +1,6 @@
 package auth
 
-import "mrtutor-api/db/queries"
+import "mrtutor/api/db/queries"
 
 func PrincipalToCreateUserParam(principal Principal) queries.CreateUserParams {
 	return queries.CreateUserParams{

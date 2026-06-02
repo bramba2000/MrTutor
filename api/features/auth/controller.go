@@ -1,7 +1,8 @@
 package auth
 
 import (
-	"mrtutor-api/transport/httpbind"
+	"mrtutor/api/config"
+	"mrtutor/api/transport/httpbind"
 	"net/http"
 )
 
@@ -69,5 +70,7 @@ func NewSessionToken(session Session) *http.Cookie {
 		Name:     sessionCookieName,
 		Value:    session.Token,
 		HttpOnly: true,
+		Secure:   config.Mode == config.PROD,
+		SameSite: http.SameSiteLaxMode,
 	}
 }

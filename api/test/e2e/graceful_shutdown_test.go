@@ -2,7 +2,7 @@ package e2e
 
 import (
 	"fmt"
-	"mrtutor-api/config"
+	"mrtutor/api/config"
 	"net/http"
 	"syscall"
 	"testing"

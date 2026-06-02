@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	apierrors "mrtutor-api/errors"
+	apierrors "mrtutor/api/errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"

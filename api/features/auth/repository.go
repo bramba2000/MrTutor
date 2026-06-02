@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
-	"mrtutor-api/db/queries"
-	apierrors "mrtutor-api/errors"
+	"mrtutor/api/db/queries"
+	apierrors "mrtutor/api/errors"
 	"time"
 )
 

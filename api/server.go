@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"mrtutor-api/config"
+	"mrtutor/api/config"
 	"net"
 	"net/http"
 	"os"

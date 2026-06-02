@@ -3,12 +3,21 @@
 version: "3"
 
 tasks:
+    sqlcgen:
+        dir: ..
+        sources:
+            - sqlc.yml
+            - "api/**/*.sql"
+        cmds:
+            - go tool sqlc generate -f api/sqlc.yml
+        silent: true
     generate:
-        deps:
+        dir: ..
+        sources:
             - go.mod
             - "**/*.go"
         cmds:
-            - go generate ./...
+            - go generate ./api/...
         silent: true
     test:
         deps:

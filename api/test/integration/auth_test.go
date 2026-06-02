@@ -3,7 +3,7 @@ package integration
 import (
 	"log/slog"
 	"math/rand/v2"
-	"mrtutor-api/features/auth"
+	"mrtutor/api/features/auth"
 	"net/http"
 	"strconv"
 	"testing"
@@ -104,6 +104,9 @@ func TestAuthModule(t *testing.T) {
 		}
 		if registerResponse.ID == 0 {
 			t.Error("Expected non-zero user ID")
+		}
+		if registerResponse.HashedPassword != "" {
+			t.Error("Expected hashed password to be empty in response")
 		}
 	})
 

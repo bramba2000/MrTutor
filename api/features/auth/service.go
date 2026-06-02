@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	apierrors "mrtutor-api/errors"
+	apierrors "mrtutor/api/errors"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -17,17 +17,26 @@ type serviceImpl struct {
 
 // VerifySession implements [Service].
 func (s *serviceImpl) VerifySession(ctx context.Context, sessionToken string) (*Principal, error) {
-	session, err := s.sessionStore.GetSession(ctx, sessionToken)
+	principal, err := s.sessionStore.GetSession(ctx, sessionToken)
 	if err != nil {
 		if errors.Is(err, errSessionNotFound) {
 			return nil, apierrors.ErrUnauthorized
 		}
 	}
-	return session, nil
+	go func() {
+		_, err := s.sessionStore.RefreshSession(ctx, sessionToken)
+		if err != nil {
+			s.logger.Error("Failed to refresh session", "sessionToken", sessionToken, "error", err)
+		}
+	}()
+	return principal, nil
 }
 
 // Login implements [Service].
 func (s *serviceImpl) Login(ctx context.Context, req LoginRequest) (string, error) {
+	if err := req.Validate(); err != nil {
+		return "", err
+	}
 	principal, err := s.repository.FindPrincipalByEmailOrUsername(ctx, req.Token)
 	if err != nil {
 		if errors.Is(err, errPrincipalNotFound) {

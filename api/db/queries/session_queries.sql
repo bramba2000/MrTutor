@@ -45,4 +45,6 @@ FROM
 JOIN
     sessions ON users.id = sessions.user_id
 WHERE
-    sessions.token = :token;
+    sessions.token = :token AND
+    sessions.absolute_expiry > datetime('now') AND
+    sessions.idle_expiry > datetime('now');
