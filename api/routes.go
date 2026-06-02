@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"mrtutor-api/config"
-	"mrtutor-api/features/user"
+	"mrtutor-api/features/auth"
 	"net/http"
 	"strings"
 )
@@ -32,7 +32,7 @@ func addRoutes(mux *http.ServeMux, logger *slog.Logger, db *sql.DB) {
 		return
 	}
 
-	user.NewModule(db, logger).RegisterRoutes(internalMux)
+	auth.InitModule(db, logger).RegisterRoutes(internalMux)
 
 	// Apply global middleware to all routes under the base path
 	handler := applyMiddleware(

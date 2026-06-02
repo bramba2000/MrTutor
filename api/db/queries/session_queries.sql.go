@@ -91,6 +91,32 @@ func (q *Queries) GetSessionById(ctx context.Context, token string) (Session, er
 	return i, err
 }
 
+const getUserBySessionId = `-- name: GetUserBySessionId :one
+SELECT
+    users.id, users.username, users.email, users.password, users.created_at, users.modified_at
+FROM
+    users
+JOIN
+    sessions ON users.id = sessions.user_id
+WHERE
+    sessions.token = ?1
+`
+
+// GetUserBySessionId retrieves a user by session token
+func (q *Queries) GetUserBySessionId(ctx context.Context, token string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserBySessionId, token)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+		&i.ModifiedAt,
+	)
+	return i, err
+}
+
 const updateSessionIdleExpiry = `-- name: UpdateSessionIdleExpiry :exec
 UPDATE sessions
 SET idle_expiry = ?1

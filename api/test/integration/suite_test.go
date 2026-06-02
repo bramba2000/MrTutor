@@ -1,11 +1,15 @@
 package integration
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"io"
+	"log/slog"
 	"mrtutor-api/db"
 	"mrtutor-api/db/migrations"
+	testutils "mrtutor-api/test"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,14 +34,14 @@ func setupTestDb(t *testing.T) *sql.DB {
 		t.Fatalf("failed to create in-memory database: %v", err)
 	}
 	t.Cleanup(func() {
-		db.Close()
+		db.Close() //nolint
 	})
 	m, err := migrations.NewWithDb(db)
 	if err != nil {
 		t.Fatalf("failed to create migrations: %v", err)
 	}
 	t.Cleanup(func() {
-		m.Close()
+		m.Close() //nolint
 	})
 	if err := m.Up(); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
@@ -62,4 +66,28 @@ func logResponseBody(t *testing.T, resp *http.Response) {
 		return
 	}
 	t.Logf("response body: %s", string(bodyBytes))
+}
+
+func mustEncodeJSON(t *testing.T, v any) *bytes.Reader {
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("Failed to marshal JSON: %v", err)
+	}
+	return bytes.NewReader(data)
+}
+
+func mustUnmarshalJSON[T any](t *testing.T, w io.Reader) T {
+	result := new(T)
+	decoder := json.NewDecoder(w)
+	if err := decoder.Decode(result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+	return *result
+}
+
+func NewTextHandler(t *testing.T) slog.Handler {
+	w := testutils.LogArtifactFile(t)
+	return slog.NewTextHandler(w, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
 }

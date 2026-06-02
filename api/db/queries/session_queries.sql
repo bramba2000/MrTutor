@@ -35,3 +35,14 @@ UPDATE sessions
 SET idle_expiry = :idle_expiry
 WHERE
     token = :token;
+
+-- name: GetUserBySessionId :one
+-- GetUserBySessionId retrieves a user by session token
+SELECT
+    users.*
+FROM
+    users
+JOIN
+    sessions ON users.id = sessions.user_id
+WHERE
+    sessions.token = :token;
