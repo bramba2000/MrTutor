@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+tasks:
+    generate:
+        deps:
+            - go.mod
+            - "**/*.go"
+        cmds:
+            - go generate ./...
+        silent: true
+    test:
+        deps:
+            - generate
+        cmds:
+            - go test $(go list ./... | grep -vE '(/test/e2e|/test/integration)')
+        silent: true
+        env:
+            APP_ENV: test
+    e2e:
+        sources:
+            - "**/*.go"
+            - "!./test/integration/**/*.go"
+        cmds:
+            - go test ./test/e2e/ -e2e
+        silent: true
+        env:
+            APP_ENV: test
+    integration:
+        deps:
+            - generate
+        sources:
+            - "**/*.go"
+            - "!./test/e2e/**/*.go"
+        cmds:
+            - go test ./test/integration/ -it
+        silent: true
+        env:
+            APP_ENV: test
+    verify:
+        cmds:
+            - task: test
+            - task: integration
+            - task: e2e
+        failfast: true
+        silent: false
+    run:
+        cmd: go run ./
+        silent: false

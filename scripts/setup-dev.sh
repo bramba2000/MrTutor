@@ -59,6 +59,15 @@ go install -tags 'sqlite' github.com/golang-migrate/migrate/v4/cmd/migrate@lates
 require_cmd migrate "go install -tags 'sqlite' github.com/golang-migrate/migrate/v4/cmd/migrate@latest"
 info "migrate $(migrate -version 2>&1) found"
 
+# ── 3. Monorepo tool ──────────────────────────────────────────────────────────
+
+section "3. Monorepo tool (taskfile)"
+info "Installing Taskfile..."
+sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b "$(go env GOPATH)"/bin
+
+require_cmd task "sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b <binary_path>"
+task
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 
 echo -e "\n${BOLD}${GREEN}Setup complete.${RESET} Happy hacking!\n"
