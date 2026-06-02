@@ -7,6 +7,8 @@ import (
 	"mrtutor/api/features/auth"
 	"net/http"
 	"strings"
+
+	"github.com/go-co-op/gocron"
 )
 
 func healthHandler() http.Handler {
@@ -18,7 +20,7 @@ func healthHandler() http.Handler {
 	})
 }
 
-func addRoutes(mux *http.ServeMux, logger *slog.Logger, db *sql.DB) {
+func addRoutes(mux *http.ServeMux, logger *slog.Logger, db *sql.DB, scheduler *gocron.Scheduler) {
 	internalMux := http.NewServeMux()
 	internalMux.Handle("/health", healthHandler())
 
@@ -32,7 +34,7 @@ func addRoutes(mux *http.ServeMux, logger *slog.Logger, db *sql.DB) {
 		return
 	}
 
-	auth.InitModule(db, logger).RegisterRoutes(internalMux)
+	auth.InitModule(db, logger, scheduler).RegisterRoutes(internalMux)
 
 	// Apply global middleware to all routes under the base path
 	handler := applyMiddleware(

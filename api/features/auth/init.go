@@ -3,11 +3,14 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
+	"mrtutor/api/db/queries"
 	"mrtutor/api/validation"
 	"net/http"
 	"time"
 
+	"github.com/go-co-op/gocron"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -113,12 +116,26 @@ type module interface {
 	RegisterRoutes(mux *http.ServeMux)
 }
 
-func InitModule(db *sql.DB, logger *slog.Logger) module {
+func InitModule(db *sql.DB, logger *slog.Logger, scheduler *gocron.Scheduler) module {
+	queries := queries.New(db)
+	sessionStore := &sqlSessionStore{db, queries}
+
 	service := &serviceImpl{
-		repository:   newSQLRepository(db),
-		sessionStore: newSQLSessionStore(db),
+		repository:   &sqlRepository{db, queries},
+		sessionStore: sessionStore,
 		logger:       logger,
 	}
+
+	_, err := scheduler.Every(1).Hour().WaitForSchedule().Do(func() {
+		if err := sessionStore.DeleteExpiredSessions(context.Background()); err != nil {
+			logger.Error("failed to delete expired sessions", "error", err)
+		}
+	})
+
+	if err != nil {
+		panic(fmt.Sprintf("failed to schedule session cleanup: %v", err))
+	}
+
 	return struct {
 		Service
 		controller

@@ -11,7 +11,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/go-co-op/gocron"
 	"github.com/golang-migrate/migrate/v4"
 )
 
@@ -65,14 +67,17 @@ func main() {
 
 	// Register dependencies
 	db := setupDb(logger)
-	server, cancelServerCtx := newServer(logger, db)
 	defer db.Close()
 
-	// Start the server in a separate goroutine
+	scheduler := gocron.NewScheduler(time.UTC)
+	server, cancelServerCtx := newServer(logger, db, scheduler)
+
+	scheduler.StartAsync()
 	go startServer(logger, server)
 
 	<-ctx.Done()
-	// Clean up resources and gracefully shut down the server
+	// Stop background jobs first, then drain in-flight HTTP requests.
 	stop()
+	scheduler.Stop()
 	shutdownServer(logger, server, cancelServerCtx)
 }
