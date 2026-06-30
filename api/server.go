@@ -6,23 +6,22 @@ import (
 	"errors"
 	"log/slog"
 	"mrtutor/api/config"
+	"mrtutor/api/scheduler"
 	"net"
 	"net/http"
 	"os"
 	"sync/atomic"
-
-	"github.com/go-co-op/gocron"
 )
 
 var isShuttingDownServer atomic.Bool
 
 // newServer creates and configures a new HTTP server with the necessary routes and middleware.
 // It returns the configured server and a cancel function to close the server's base context when needed.
-func newServer(logger *slog.Logger, db *sql.DB, scheduler *gocron.Scheduler) (*http.Server, context.CancelFunc) {
+func newServer(logger *slog.Logger, db *sql.DB, sched *scheduler.Scheduler) (*http.Server, context.CancelFunc) {
 	ctx, stop := context.WithCancel(context.Background())
 
 	mux := http.NewServeMux()
-	addRoutes(mux, logger, db, scheduler)
+	addRoutes(mux, logger, db, sched)
 
 	return &http.Server{
 		Addr:        net.JoinHostPort("", config.Port),

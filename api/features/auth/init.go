@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"mrtutor/api/db/queries"
+	"mrtutor/api/scheduler"
 	"mrtutor/api/validation"
 	"net/http"
 	"time"
 
-	"github.com/go-co-op/gocron"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -116,7 +116,7 @@ type module interface {
 	RegisterRoutes(mux *http.ServeMux)
 }
 
-func InitModule(db *sql.DB, logger *slog.Logger, scheduler *gocron.Scheduler) module {
+func InitModule(db *sql.DB, logger *slog.Logger, sched *scheduler.Scheduler) module {
 	queries := queries.New(db)
 	sessionStore := &sqlSessionStore{db, queries}
 
@@ -126,10 +126,14 @@ func InitModule(db *sql.DB, logger *slog.Logger, scheduler *gocron.Scheduler) mo
 		logger:       logger,
 	}
 
-	_, err := scheduler.Every(1).Hour().WaitForSchedule().Do(func() {
-		if err := sessionStore.DeleteExpiredSessions(context.Background()); err != nil {
-			logger.Error("failed to delete expired sessions", "error", err)
+	// Hourly cleanup of expired sessions. The job uses the scheduler-provided
+	// ctx (cancelled on shutdown) and returns its error so the runner logs it;
+	// a failed cleanup is non-fatal and retries on the next hour.
+	err := sched.Add("session-cleanup", scheduler.Periodic(time.Hour), func(ctx context.Context) error {
+		if err := sessionStore.DeleteExpiredSessions(ctx); err != nil {
+			return fmt.Errorf("delete expired sessions: %w", err)
 		}
+		return nil
 	})
 
 	if err != nil {

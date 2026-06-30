@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"mrtutor/api/features/auth"
+	"mrtutor/api/scheduler"
 	"net/http"
 	"strconv"
 	"testing"
@@ -13,7 +14,8 @@ func TestAuthModule(t *testing.T) {
 	const defaultPassword = "Password123!"
 	db := setupTestDb(t)
 
-	module := auth.InitModule(db, slog.New(NewTextHandler(t)))
+	logger := slog.New(NewTextHandler(t))
+	module := auth.InitModule(db, logger, scheduler.New(logger))
 	mux := http.NewServeMux()
 	module.RegisterRoutes(mux)
 

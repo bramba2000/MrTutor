@@ -8,12 +8,12 @@ import (
 	"mrtutor/api/config"
 	"mrtutor/api/db"
 	"mrtutor/api/db/migrations"
+	"mrtutor/api/scheduler"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/go-co-op/gocron"
 	"github.com/golang-migrate/migrate/v4"
 )
 
@@ -22,6 +22,7 @@ const (
 	ServerClosedUnexpectedlyExitCode
 	ServerShutdownErrorExitCode
 	SetupDbErrorExitCode
+	FatalTaskErrorExitCode
 )
 
 func setupDb(logger *slog.Logger) *sql.DB {
@@ -59,7 +60,7 @@ func setupDb(logger *slog.Logger) *sql.DB {
 }
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	logger := newLogger()
@@ -69,15 +70,38 @@ func main() {
 	db := setupDb(logger)
 	defer db.Close()
 
-	scheduler := gocron.NewScheduler(time.UTC)
-	server, cancelServerCtx := newServer(logger, db, scheduler)
+	// appCtx is cancelled by an OS signal OR by a fatal scheduled job, so both
+	// converge on the single shutdown path below.
+	appCtx, cancelApp := context.WithCancelCause(signalCtx)
+	defer cancelApp(nil)
 
-	scheduler.StartAsync()
+	sched := scheduler.New(logger,
+		scheduler.WithLocation(time.UTC),
+		scheduler.OnFatal(func(err error) { cancelApp(err) }),
+	)
+	server, cancelServerCtx := newServer(logger, db, sched)
+
+	sched.Start(appCtx)
 	go startServer(logger, server)
 
-	<-ctx.Done()
-	// Stop background jobs first, then drain in-flight HTTP requests.
+	<-appCtx.Done()
 	stop()
-	scheduler.Stop()
+
+	var fatal *scheduler.FatalError
+	isFatal := errors.As(context.Cause(appCtx), &fatal)
+	if isFatal {
+		logger.Error("shutting down due to fatal task error", "error", context.Cause(appCtx))
+	}
+
+	// Stop background jobs first, then drain in-flight HTTP requests.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), config.ShutdownTimeout)
+	defer cancel()
+	if err := sched.Shutdown(shutdownCtx); err != nil {
+		logger.Error("scheduler shutdown error", "error", err)
+	}
 	shutdownServer(logger, server, cancelServerCtx)
+
+	if isFatal {
+		os.Exit(FatalTaskErrorExitCode)
+	}
 }
