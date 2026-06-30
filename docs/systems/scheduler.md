@@ -1,162 +1,134 @@
 # Scheduler
 
-Package `mrtutor/api/scheduler` runs background jobs on configurable schedules.
-It provides the same capabilities as Spring's `@Scheduled` — periodic and
-one-shot jobs, each able to start after a delay or at a precise wall-clock time —
-without copying its style. The design is deliberately small (two core types) and
-is built so that **V2 cron support drops in as just another schedule, with no
-change to the scheduler, the runner, or any caller**.
+`mrtutor/api/scheduler` runs background jobs on a schedule. I wanted what
+Spring's `@Scheduled` gives you (periodic jobs, one-shot jobs, a delay or a fixed
+start time) but written the way Go wants it, not as a port of the Java version.
 
-## Goals
+The whole thing is built around one idea so that adding cron later (V2) doesn't
+mean rewriting anything: a schedule is just "given a time, when do I fire next?".
 
-- **Periodic and one-shot ("singleton") jobs**, each startable after a delay or at
-  a precise wall-clock instant.
-- **Context cancellation** — jobs receive a context that is cancelled on shutdown.
-- **Error resilience** — a job that errors or panics is logged and keeps running.
-- **Fatal escalation** — a job may declare an error fatal, gracefully stopping the
-  whole application.
-- **Graceful, leak-free shutdown** on OS signals (SIGINT/SIGTERM).
-- **Timezone awareness** — the location is configurable.
-- **A clean seam for V2 cron** — parsing a cron expression yields a `Schedule`.
-
-## Core abstractions
-
-The whole package pivots on one question: *given a reference time, when does this
-job next fire?* That is the `Schedule` interface.
+## The two types
 
 ```go
 type Schedule interface {
     // Next returns the next fire strictly after `after`, resolved in `loc`.
-    // ok=false means the schedule is exhausted (e.g. a one-shot already fired).
+    // ok == false means there's nothing left to run (a one-shot that already
+    // fired, for example).
     Next(after time.Time, loc *time.Location) (next time.Time, ok bool)
 }
 
 type Job func(ctx context.Context) error
 ```
 
-A `Job` is the unit of work. A `Schedule` decides when it runs. Everything
-else — periodic, one-shot, delayed, start-at, and (V2) cron — is an implementation
-of `Schedule`. The runner is schedule-agnostic: it only asks `Next`, waits, runs,
-and repeats.
+A `Job` is the work. A `Schedule` says when. That's it. Periodic, one-shot,
+delayed, start-at, and eventually cron are all just different `Schedule`s; the
+runner never knows or cares which one it's driving. It asks `Next`, waits, runs
+the job, asks again.
 
-### Why this shape is the cron seam
+### Why `Next` looks like this
 
-A cron expression is, by definition, a function "given a time, what is the next
-matching instant?" — which is exactly `Next(after, loc)`. V2 adds only:
-
-```go
-func Cron(expr string) (Schedule, error) // walks civil time in loc, DST-correct
-```
-
-No other file changes. A relative `(delay, repeat bool)` shape (used by the
-earlier broken stub) was rejected: it cannot express "02:30 daily in Europe/Rome
-across DST" nor a finite-but-multi-fire schedule. The absolute-time `Next` is
-strictly more expressive and matches the shape used by `robfig/cron` and
-`gocron` v2.
-
-### Built-in schedules (V1)
-
-| Constructor | Meaning |
-|---|---|
-| `Periodic(interval)` | fixed-rate; first fire one interval after Start |
-| `PeriodicAt(first, interval)` | aligned to a wall-clock anchor, then every interval |
-| `Once(delay)` | singleton, `delay` after Start |
-| `OnceAt(at)` | singleton at a precise wall-clock instant |
-| `Delayed(delay, inner)` | first fire `delay` after Start, then defer to `inner` |
-
-The four required combinations:
+A cron expression is literally a "next matching time after t" function, so when
+V2 lands it's only:
 
 ```go
-scheduler.Periodic(time.Hour)                              // periodic
-scheduler.PeriodicAt(at, time.Hour)                        // periodic, at a precise time
-scheduler.Once(5 * time.Minute)                            // singleton, delayed
-scheduler.OnceAt(at)                                       // singleton, at a precise time
-scheduler.Delayed(30*time.Second, scheduler.Periodic(time.Hour)) // initial delay, then periodic
+func Cron(expr string) (Schedule, error)
 ```
 
-**Fixed-rate semantics.** `Periodic` anchors fire times to Start
-(`anchor`, `anchor+interval`, `anchor+2·interval`, …). The runner computes the
-next fire from the *current* time after each run, so a run that overruns its slot
-simply **skips the missed slots** and fires at the next aligned slot rather than
-bursting to catch up — identical to cron. Fixed-delay (next fire = completion +
-interval) can be added later as a separate constructor without an interface
-change.
+and nothing else moves. The old (deleted) stub used `(delay, repeat bool)`
+instead, which I didn't keep: a relative delay can't say "02:30 every day in
+Europe/Rome" correctly once DST is involved, and a bool can't describe a schedule
+that fires a few times and then stops. Returning an absolute time covers both,
+and it's the same shape `robfig/cron` and gocron v2 use.
 
-> A `Schedule` instance is **bound to a single job** and may hold state across
-> calls (e.g. `Periodic` records its anchor lazily; one-shots remember they
-> fired). Do not share a `Schedule` value between jobs.
+## What's built in
 
-## Scheduler lifecycle
+```go
+scheduler.Periodic(time.Hour)            // every hour, first run an hour after Start
+scheduler.PeriodicAt(at, time.Hour)      // anchored to a wall-clock time, then hourly
+scheduler.Once(5 * time.Minute)          // run once, 5 minutes after Start
+scheduler.OnceAt(at)                     // run once at a specific time
+scheduler.Delayed(30*time.Second, scheduler.Periodic(time.Hour)) // wait 30s, then hourly
+```
+
+`Periodic` is fixed-rate: fire times are anchored to Start (`anchor`,
+`anchor+interval`, `anchor+2·interval`, …). After each run the runner asks for the
+next fire using the *current* time, so if a run takes longer than its interval the
+missed slots are skipped and it picks up at the next one instead of firing a burst
+to catch up. That's the same thing cron does. If we ever need fixed-delay (next
+run measured from when the last one finished) it's a new constructor, not a change
+to the interface.
+
+One catch worth knowing: a `Schedule` value carries state (Periodic remembers its
+anchor, the one-shots remember they've fired), so it belongs to a single job.
+Don't reuse the same `Schedule` for two jobs.
+
+## Lifecycle
 
 ```go
 sched := scheduler.New(logger,
-    scheduler.WithLocation(time.UTC),               // default UTC
-    scheduler.OnFatal(func(err error) { ... }),     // fatal-error hook
+    scheduler.WithLocation(time.UTC),            // UTC if you don't set it
+    scheduler.OnFatal(func(err error) { ... }),  // see "Fatal errors" below
 )
-sched.Add("cleanup", scheduler.Periodic(time.Hour), cleanupFn) // before Start
-sched.Start(appCtx)                                  // non-blocking; one goroutine per job
+sched.Add("cleanup", scheduler.Periodic(time.Hour), cleanupFn) // register before Start
+sched.Start(appCtx)                              // returns immediately
 ...
-sched.Shutdown(shutdownCtx)                          // cancel + drain in-flight jobs
+sched.Shutdown(shutdownCtx)                      // stop and wait for running jobs
 ```
 
-- **`Add`** registers a uniquely-named job; it must be called before `Start`
-  (duplicate / empty name / nil schedule / adding after Start all return an error).
-- **`Start(ctx)`** derives an internal `context.WithCancelCause(ctx)` and spawns
-  one runner goroutine per job. `ctx` is the base of every job's context.
-- **`Shutdown(ctx)`** cancels the jobs and waits for in-flight runs to finish,
-  bounded by `ctx`; it returns `ctx.Err()` if the deadline elapses first.
+`Add` wants a unique, non-empty name and has to be called before `Start` (it
+returns an error otherwise, along with duplicate names and nil arguments).
+`Start` takes the context that becomes the parent of every job's context, then
+spawns one goroutine per job. `Shutdown` cancels everything and waits for any
+in-flight run to return, but only up to whatever deadline you put on its context.
 
-### The runner loop
+### The runner
 
 ```go
 next, ok := schedule.Next(now, loc)
 for ok {
     timer := clock.NewTimer(next.Sub(now))
     select {
-    case <-runCtx.Done():   // shutdown or fatal: stop the timer and exit
+    case <-runCtx.Done():   // shutting down: stop the timer and leave
         return
     case <-timer.C():
-        invoke(job)         // recover panics, log errors, detect Fatal
-        next, ok = schedule.Next(now, loc) // skip slots missed during the run
+        invoke(job)         // recovers panics, logs errors, spots Fatal
+        next, ok = schedule.Next(now, loc) // skips slots a long run missed
     }
 }
 ```
 
-Guarantees:
+A couple of properties fall out of writing it this way. A job never overlaps
+itself, because the next fire isn't computed until the current run returns
+(different jobs still run in parallel). Nothing leaks, because every runner does
+`defer wg.Done()` and `Shutdown` waits on that WaitGroup. And it can't spin,
+because `Next` is required to return a time strictly later than the one you pass
+in.
 
-- **No self-overlap** — the next fire is computed only after the current run
-  returns, so a job never runs concurrently with itself. Distinct jobs run
-  concurrently in their own goroutines.
-- **No goroutine leak** — each runner does `defer wg.Done()`; `Shutdown` cancels
-  and `wg.Wait()`s against the caller's deadline.
-- **No busy-loop** — `Next` must return a time strictly after its argument.
+## When a job fails
 
-## Error handling & resilience
+The job runs inside a `recover()`, and what comes back decides what happens:
 
-`invoke` runs the job body inside a `recover()`. Outcomes:
+- `nil` — fine, stays on schedule.
+- an error — logged, stays on schedule, runs again next time.
+- a panic — recovered and logged like a normal error, stays on schedule.
+- `scheduler.Fatal(err)` — logged, then the whole app shuts down (next section).
 
-| Job returns | Effect |
-|---|---|
-| `nil` | success; stays on schedule |
-| a non-nil error | logged at error level; stays on schedule (retries next fire) |
-| **panic** | recovered, logged as an error; stays on schedule |
-| `scheduler.Fatal(err)` | logged, then triggers a graceful **application** shutdown |
+The point is that a broken job logs and keeps going instead of taking the process
+down with it. A panic is just a noisier error. Only reach for `Fatal` when the
+condition is something the rest of the app can't run without either.
 
-A panic is treated as an ordinary (non-fatal) error so a single bad run cannot
-crash the process. Wrap with `Fatal` only for conditions the whole app cannot
-survive.
+## Fatal errors and shutdown
 
-## Fatal errors and unified shutdown
-
-A fatal job error and an OS signal converge on **one** shutdown path via
-`context.WithCancelCause`:
+I didn't want two different shutdown paths, one for signals and one for fatal
+jobs. They both end up cancelling the same context, so `main` only has to wait in
+one place and then check *why* it woke up:
 
 ```
                          ┌─ OS signal (SIGINT/SIGTERM) ─┐
                          │                              ▼
 signalCtx ──► appCtx (WithCancelCause) ──► <-appCtx.Done() ──► drain scheduler ──► drain HTTP
                          ▲                              │
-   job returns Fatal(err)│                              └─► context.Cause(appCtx) picks exit code
+   job returns Fatal(err)│                              └─► context.Cause(appCtx) tells us which
    → OnFatal(err) ───► cancelApp(err)
 ```
 
@@ -172,58 +144,60 @@ sched := scheduler.New(logger,
 )
 sched.Start(appCtx)
 ...
-<-appCtx.Done()                                  // signal OR fatal job
+<-appCtx.Done()                                  // a signal, or a fatal job
 var fatal *scheduler.FatalError
 isFatal := errors.As(context.Cause(appCtx), &fatal)
 
 sched.Shutdown(shutdownCtx)                       // jobs first
-shutdownServer(...)                               // then drain HTTP
-if isFatal { os.Exit(FatalTaskErrorExitCode) }    // exit code 5
+shutdownServer(...)                               // then HTTP
+if isFatal { os.Exit(FatalTaskErrorExitCode) }    // exit 5
 ```
 
-Shutdown order is preserved from the previous gocron-based design: **background
-jobs drain first, then in-flight HTTP requests**, bounded by
-`config.ShutdownTimeout`.
+The order is the same as it was under gocron: stop the background jobs first,
+then let in-flight HTTP requests finish, all inside `config.ShutdownTimeout`.
 
-## Timezone & DST
+## Timezones and DST
 
-`WithLocation` sets the location (default `time.UTC`) passed into every
-`Schedule.Next`. The V1 built-ins use **absolute** time arithmetic and therefore
-ignore the location for computation; `loc` exists for wall-clock schedules — cron
-in V2 — which must resolve civil time and DST in a location.
+`WithLocation` sets the location (UTC by default) that gets passed to every
+`Next` call. The V1 schedules do absolute time arithmetic and don't actually look
+at it; the argument is there for the wall-clock schedules that will need it, which
+really means cron.
 
-Consequence: `PeriodicAt(t, 24*time.Hour)` adds an absolute 24 hours, so across a
-DST boundary the local wall-clock time shifts by the gained/lost hour (see
-`TestPeriodicAtAcrossDST`). For true civil-time recurrence such as "every day at
-02:30 local", use cron (V2), which walks civil time and is DST-correct.
+So be aware: `PeriodicAt(t, 24*time.Hour)` adds a literal 24 hours each time, and
+across a DST switch the local clock time drifts by the hour you gained or lost
+(there's a test for this, `TestPeriodicAtAcrossDST`). If you actually want "02:30
+local every day" regardless of DST, that's a job for cron in V2, which walks civil
+time properly.
 
-## Testing
+## Tests
 
-Time is abstracted behind a `Clock` (`Now` + `NewTimer`) and `Timer`
-(`C` + `Stop`) so tests run deterministically without sleeping on the wall clock.
-Production uses the real clock; tests inject a fake via `WithClock`.
+Time goes through a `Clock` (`Now` + `NewTimer`) so the tests don't sleep on the
+real clock. Production gets the real one; tests pass a fake through `WithClock`.
 
-- `schedule_test.go` — table-driven `Next` math for every constructor, including
-  overrun slot-skipping, one-shot exhaustion, and the DST documentation test.
-- `scheduler_test.go` — a deterministic fake clock drives the runner in lockstep
-  (advance time, wait for the runner to register its next timer). Covers
-  registration validation, firing, live job context, panic recovery, non-fatal
-  retry, fatal → `OnFatal` + shutdown, no self-overlap, drain-on-shutdown, and the
-  shutdown deadline.
+`schedule_test.go` checks the `Next` arithmetic for each constructor — the slot
+skipping on overrun, one-shots running exactly once, and the DST behaviour above.
+`scheduler_test.go` uses a fake clock that lets the test step the runner forward
+one timer at a time, and covers the registration errors, firing, the job getting a
+live context, panic recovery, retry after a normal error, a fatal error reaching
+`OnFatal`, jobs not overlapping themselves, draining on shutdown, and the shutdown
+deadline.
 
-Run: `task api:test` (unit) and `go test -race ./scheduler/`.
+```
+task api:test
+go test -race ./scheduler/
+```
 
 ## V2: cron
 
-V2 adds `func Cron(expr string) (Schedule, error)`. Its `Next` walks civil time in
-the scheduler's location to the next matching instant (DST-correct). Nothing else
-changes — the runner, lifecycle, error handling, and shutdown are all unaffected.
-The application would register a cron job exactly like any other:
+V2 is just `Cron(expr string) (Schedule, error)` whose `Next` walks civil time in
+the scheduler's location to the next match. The runner, the lifecycle, the error
+handling and shutdown all stay as they are. Registering one looks like everything
+else:
 
 ```go
-spec, err := scheduler.Cron("0 2 * * *") // 02:00 daily, in the scheduler location
+spec, err := scheduler.Cron("0 2 * * *") // 02:00 daily, in the scheduler's location
 sched.Add("nightly", spec, nightlyFn)
 ```
 
-A per-schedule location override (`InLocation(loc, inner)`) is also a trivial
-decorator the `Next(after, loc)` signature already accommodates.
+A per-job location override (`InLocation(loc, inner)`) drops in the same way,
+since `Next` already takes the location.
