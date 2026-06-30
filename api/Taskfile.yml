@@ -55,5 +55,15 @@ tasks:
         failfast: true
         silent: false
     run:
+        preconditions:
+            - sh: test -d static/dist
+              msg: "static/dist missing — run `task web:build` or create static/dist/.gitkeep"
         cmd: go run ./
+    build:
+        sources:
+            - "**/*.go"
+            - static/dist/**/* # embedded assets are an input to the binary
+        generates:
+            - bin/app
+        cmd: go build -o bin/app ./ # was ./cmd/app (non-existent)
         silent: false

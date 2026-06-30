@@ -9,3 +9,19 @@ includes:
     api:
         taskfile: ./api/Taskfile.yml
         dir: ./api
+    web:
+        taskfile: ./web/Taskfile.yml
+        dir: ./web
+
+tasks:
+    dev:
+        desc: Run the API and the Vite dev server together
+        deps:
+            - api:run
+            - web:dev # deps run in parallel; Ctrl-C stops both
+
+    build:
+        desc: Build the production binary with the frontend embedded
+        cmds:
+            - task: web:build # populate api/static/dist first
+            - task: api:build # then compile the embed into bin/app

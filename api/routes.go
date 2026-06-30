@@ -6,6 +6,7 @@ import (
 	"mrtutor/api/config"
 	"mrtutor/api/features/auth"
 	"mrtutor/api/scheduler"
+	"mrtutor/api/static"
 	"net/http"
 	"strings"
 )
@@ -41,4 +42,6 @@ func addRoutes(mux *http.ServeMux, logger *slog.Logger, db *sql.DB, sched *sched
 		newLoggingMiddleware(logger),
 	)
 	mux.Handle(basePath+"/", handler)
+	// SPA fallback route to serve static files for any unmatched routes under the base path
+	mux.Handle("/", static.Handler())
 }

@@ -1,0 +1,26 @@
+version: "3"
+vars:
+  PM: "bun"
+tasks:
+  install:
+    sources:
+      - package.json
+      - bun.lock
+    cmds: ["{{.PM}} install"]
+  dev:
+    deps: [install]
+    cmds: ["{{.PM}} run dev"]
+  generate-routes:
+    deps: [install]
+    cmds: ["{{.PM}} run generate-routes"]
+  build:
+    deps: [install]
+    sources:
+      - src/**/*
+      - public/**/*
+      - index.html
+      - vite.config.ts
+      - tsconfig.json
+    generates:
+      - ../api/static/dist/**/*
+    cmds: ["{{.PM}} run build"]
