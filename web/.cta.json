@@ -4,13 +4,15 @@
   "typescript": true,
   "packageManager": "bun",
   "includeExamples": false,
-  "tailwind": true,
+  "tailwind": false,
   "addOnOptions": {},
   "envVarValues": {},
   "git": false,
   "install": true,
   "routerOnly": true,
   "version": 1,
+  "addOns": true,
+  "intent": true,
   "framework": "react",
-  "chosenAddOns": []
+  "chosenAddOns": ["tanstack-query"]
 }

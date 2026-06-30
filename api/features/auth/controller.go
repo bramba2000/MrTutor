@@ -59,10 +59,39 @@ func (c controller) RegisterHandler() http.Handler {
 	)
 }
 
+func (c controller) MeHandler() http.Handler {
+	type PrincipalResponse struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+	}
+
+	return httpbind.NewHandler(
+		func(r *http.Request) (string, error) {
+			cookie, err := r.Cookie(sessionCookieName)
+			if err != nil {
+				// No cookie → pass empty token; VerifySession returns ErrUnauthorized → 401.
+				return "", nil
+			}
+			return cookie.Value, nil
+		},
+		c.service.VerifySession,
+		func(w http.ResponseWriter, principal *Principal) error {
+			response := PrincipalResponse{
+				ID:       principal.ID,
+				Username: principal.Username,
+				Email:    principal.Email,
+			}
+			return httpbind.NewJSONEncoder[PrincipalResponse](http.StatusOK)(w, response)
+		},
+	)
+}
+
 func (c controller) RegisterRoutes(mux *http.ServeMux) {
-	mux.Handle("/auth/login", c.LoginHandler())
-	mux.Handle("/auth/logout", c.LogoutHandler())
-	mux.Handle("/auth/register", c.RegisterHandler())
+	mux.Handle("POST /auth/login", c.LoginHandler())
+	mux.Handle("POST /auth/logout", c.LogoutHandler())
+	mux.Handle("POST /auth/register", c.RegisterHandler())
+	mux.Handle("GET /auth/me", c.MeHandler())
 }
 
 func NewSessionToken(session Session) *http.Cookie {
