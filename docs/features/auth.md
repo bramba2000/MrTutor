@@ -119,8 +119,11 @@ api/features/auth/
 ## Frontend layout
 
 ```
+web/src/lib/
+  api.ts           shared HTTP client (api.get/post/put/patch/delete, ApiError)
+
 web/src/features/auth/
-  api.ts           fetch wrappers + TanStack Query option factories
+  api.ts           auth-specific wrappers + TanStack Query option factories
   useAuth.ts       useAuth() hook
   mutations.ts     useLogin / useSignout / useRegister
   pages/

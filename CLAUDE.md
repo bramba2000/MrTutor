@@ -201,15 +201,42 @@ pre-login `null` is evicted and `ensureQueryData` in `_authenticated beforeLoad`
 forced to do a fresh fetch. See [docs/features/auth.md](docs/features/auth.md) for the
 full flow.
 
-### API client conventions
+### API client
 
-- Always pass `credentials: "include"` so the session cookie travels with requests.
-- Go request structs have no `json` tags — field names are PascalCase in JSON.
-  Match them: `{ Token, Password }` not `{ token, password }`.
-- `401` from `GET /auth/me` returns `null` (not thrown). All other non-ok responses
-  throw an `Error` with the response text.
-- In dev, Vite proxies `/api/*` → `http://localhost:8080`. Use relative paths — no
-  base-URL config.
+All HTTP calls go through `src/lib/api.ts`. Import it in every `features/<name>/api.ts`:
+
+```ts
+import { api, ApiError } from "#/lib/api";
+
+await api.get<User>("/auth/me");
+await api.post("/auth/login", { Token: "alice", Password: "…" });
+await api.put("/items/42", payload);
+await api.delete("/items/42");
+```
+
+What the client provides automatically:
+- **Base path** prepended (`/api/v0` by default, overridable via `VITE_API_BASE_PATH`).
+- **`credentials: "include"`** on every request.
+- **Body serialization**: plain objects/arrays → JSON + `Content-Type: application/json`; `FormData`/`Blob`/`string` passed through (browser sets content type).
+- **Response parsing**: JSON content-type → `res.json()`; `204`/empty → `undefined`; else `res.text()`.
+- **Errors**: non-ok → `throw new ApiError(status, statusText, body)`.
+
+Branch on status codes:
+
+```ts
+try {
+  return await api.get<Principal>("/auth/me");
+} catch (e) {
+  if (e instanceof ApiError && e.status === 401) return null;
+  throw e;
+}
+```
+
+Go request structs have no `json` tags — field names are PascalCase. Match them in
+request bodies: `{ Token, Password }`, not `{ token, password }`.
+
+In dev, Vite proxies `/api/*` → `:8080`. Paths passed to `api.*` are relative to the
+base path, e.g. `"/auth/me"` not `"/api/v0/auth/me"`.
 
 ### Frontend testing layout
 

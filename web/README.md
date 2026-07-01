@@ -94,11 +94,37 @@ signout.mutate(); // clears cache and navigates to /auth/login
 
 ## Talking to the backend
 
-All fetch calls live in `src/features/<name>/api.ts`. Conventions:
+All fetch calls live in `src/features/<name>/api.ts` and go through the shared client
+in `src/lib/api.ts`:
 
-- Always pass `credentials: "include"` so the session cookie travels with requests.
-- Go request structs use PascalCase field names (no `json` tags), so request bodies
-  must match: `{ Token, Password }` not `{ token, password }`.
-- A `401` from `GET /auth/me` returns `null` (not an error). All other non-ok
-  responses throw.
-- In dev, Vite proxies `/api/*` to `http://localhost:8080`. No base-URL config needed.
+```ts
+import { api, ApiError } from "#/lib/api";
+
+const user  = await api.get<User>("/auth/me");
+await api.post("/auth/login", { Token: "alice", Password: "…" });
+await api.put("/items/42", { title: "updated" });
+await api.delete("/items/42");
+```
+
+The client handles automatically:
+- **Base path** — `/api/v0` prepended to every path (overridable via `VITE_API_BASE_PATH`).
+- **Credentials** — `credentials: "include"` on every request so the session cookie travels.
+- **Request serialization** — plain objects/arrays → `JSON.stringify` + `Content-Type: application/json`; `FormData`, `Blob`, `string`, etc. are passed through untouched.
+- **Response parsing** — `Content-Type: application/json` → `res.json()`; `204`/empty body → `undefined`; otherwise `res.text()`.
+- **Errors** — non-ok responses throw `ApiError` (with `.status`, `.statusText`, `.body`) instead of returning.
+
+Branch on specific status codes via `ApiError`:
+
+```ts
+try {
+  return await api.get<Principal>("/auth/me");
+} catch (e) {
+  if (e instanceof ApiError && e.status === 401) return null;
+  throw e;
+}
+```
+
+Go request structs have no `json` tags — field names are PascalCase in JSON. Match them
+in request bodies: `{ Token, Password }` not `{ token, password }`.
+
+In dev, Vite proxies `/api/*` → `http://localhost:8080`. No base-URL config needed.
