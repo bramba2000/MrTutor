@@ -43,13 +43,6 @@ func (s *sqlRepository) FindPrincipalByEmailOrUsername(ctx context.Context, toke
 	return new(UserToPrincipal(userModel)), nil
 }
 
-func newSQLRepository(db *sql.DB) principalRepository {
-	return &sqlRepository{
-		db:      db,
-		queries: queries.New(db),
-	}
-}
-
 type sqlSessionStore struct {
 	db      *sql.DB
 	queries *queries.Queries
@@ -103,11 +96,4 @@ func (s *sqlSessionStore) RefreshSession(ctx context.Context, sessionToken strin
 // DeleteExpiredSessions removes all sessions whose absolute or idle expiry has passed.
 func (s *sqlSessionStore) DeleteExpiredSessions(ctx context.Context) error {
 	return s.queries.DeleteExpiredSessions(ctx)
-}
-
-func newSQLSessionStore(db *sql.DB) *sqlSessionStore {
-	return &sqlSessionStore{
-		db:      db,
-		queries: queries.New(db),
-	}
 }

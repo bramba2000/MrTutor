@@ -3,7 +3,6 @@ package config
 import (
 	"cmp"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -15,15 +14,6 @@ var (
 	// ShutdownTimeout is the duration to wait for the server to shut down gracefully before forcing it to close.
 	ShutdownTimeout = cmp.Or(getDurationEnv("SHUTDOWN_TIMEOUT"), 5*time.Second)
 )
-
-func getIntEnv(key string) int {
-	value := os.Getenv(key)
-	strconv, err := strconv.Atoi(value)
-	if err != nil {
-		return 0
-	}
-	return strconv
-}
 
 func getDurationEnv(key string) time.Duration {
 	value := os.Getenv(key)
