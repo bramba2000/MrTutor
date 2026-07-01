@@ -24,7 +24,8 @@ func (s *serviceImpl) VerifySession(ctx context.Context, sessionToken string) (*
 		}
 	}
 	go func() {
-		_, err := s.sessionStore.RefreshSession(ctx, sessionToken)
+		// context.WithoutCancel so the refresh outlives the request context.
+		_, err := s.sessionStore.RefreshSession(context.WithoutCancel(ctx), sessionToken)
 		if err != nil {
 			s.logger.Error("Failed to refresh session", "sessionToken", sessionToken, "error", err)
 		}
