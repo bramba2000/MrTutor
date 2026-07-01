@@ -206,7 +206,7 @@ full flow.
 All HTTP calls go through `src/lib/api.ts`. Import it in every `features/<name>/api.ts`:
 
 ```ts
-import { api, ApiError } from "#/lib/api";
+import { api, ApiError, NetworkError } from "#/lib/api";
 
 await api.get<User>("/auth/me");
 await api.post("/auth/login", { Token: "alice", Password: "…" });
@@ -219,15 +219,17 @@ What the client provides automatically:
 - **`credentials: "include"`** on every request.
 - **Body serialization**: plain objects/arrays → JSON + `Content-Type: application/json`; `FormData`/`Blob`/`string` passed through (browser sets content type).
 - **Response parsing**: JSON content-type → `res.json()`; `204`/empty → `undefined`; else `res.text()`.
-- **Errors**: non-ok → `throw new ApiError(status, statusText, body)`.
+- **HTTP errors**: non-ok response → `throw new ApiError(status, statusText, body)`.
+- **Network errors**: server never reached (offline, DNS, refused) → `throw new NetworkError(cause)`. No `.status`; the raw `TypeError` is in `.cause`.
 
-Branch on status codes:
+Branch on error type:
 
 ```ts
 try {
   return await api.get<Principal>("/auth/me");
 } catch (e) {
-  if (e instanceof ApiError && e.status === 401) return null;
+  if (e instanceof ApiError && e.status === 401) return null;  // clean 401
+  if (e instanceof NetworkError) { /* server unreachable */ }
   throw e;
 }
 ```
@@ -237,6 +239,17 @@ request bodies: `{ Token, Password }`, not `{ token, password }`.
 
 In dev, Vite proxies `/api/*` → `:8080`. Paths passed to `api.*` are relative to the
 base path, e.g. `"/auth/me"` not `"/api/v0/auth/me"`.
+
+### Error handling
+
+`src/router.tsx` registers `defaultErrorComponent: RootErrorComponent`
+(`src/components/RootErrorComponent.tsx`). It catches errors thrown from any route's
+`beforeLoad` or loader and branches:
+
+- **`NetworkError`** → renders `BackendUnreachable` (`src/components/BackendUnreachable.tsx`):
+  full-screen Mantine page with a "Try again" button and support contact details
+  (`SUPPORT_EMAIL`, `SUPPORT_HOURS` from `src/config.ts` — edit that file before going live).
+- **Anything else** → generic "Something went wrong" fallback (also Mantine-styled).
 
 ### Frontend testing layout
 

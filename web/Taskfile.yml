@@ -13,6 +13,9 @@ tasks:
   generate-routes:
     deps: [install]
     cmds: ["{{.PM}} run generate-routes"]
+  test:
+    deps: [install]
+    cmds: ["{{.PM}} run test"]
   build:
     deps: [install]
     sources:

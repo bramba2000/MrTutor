@@ -98,7 +98,7 @@ All fetch calls live in `src/features/<name>/api.ts` and go through the shared c
 in `src/lib/api.ts`:
 
 ```ts
-import { api, ApiError } from "#/lib/api";
+import { api, ApiError, NetworkError } from "#/lib/api";
 
 const user  = await api.get<User>("/auth/me");
 await api.post("/auth/login", { Token: "alice", Password: "…" });
@@ -111,15 +111,17 @@ The client handles automatically:
 - **Credentials** — `credentials: "include"` on every request so the session cookie travels.
 - **Request serialization** — plain objects/arrays → `JSON.stringify` + `Content-Type: application/json`; `FormData`, `Blob`, `string`, etc. are passed through untouched.
 - **Response parsing** — `Content-Type: application/json` → `res.json()`; `204`/empty body → `undefined`; otherwise `res.text()`.
-- **Errors** — non-ok responses throw `ApiError` (with `.status`, `.statusText`, `.body`) instead of returning.
+- **HTTP errors** — non-ok responses throw `ApiError` (with `.status`, `.statusText`, `.body`).
+- **Network errors** — when the server is never reached (offline, DNS failure, connection refused), throws `NetworkError` instead. It has no `.status`; the underlying `TypeError` is available as `.cause`.
 
-Branch on specific status codes via `ApiError`:
+Branch on error type:
 
 ```ts
 try {
   return await api.get<Principal>("/auth/me");
 } catch (e) {
-  if (e instanceof ApiError && e.status === 401) return null;
+  if (e instanceof ApiError && e.status === 401) return null;  // clean 401 → unauthenticated
+  if (e instanceof NetworkError) { /* server unreachable */ }
   throw e;
 }
 ```
@@ -128,3 +130,13 @@ Go request structs have no `json` tags — field names are PascalCase in JSON. M
 in request bodies: `{ Token, Password }` not `{ token, password }`.
 
 In dev, Vite proxies `/api/*` → `http://localhost:8080`. No base-URL config needed.
+
+### Offline / server-down page
+
+When any route's `beforeLoad` or loader throws a `NetworkError`, the router's
+`defaultErrorComponent` (`src/components/RootErrorComponent.tsx`) catches it and renders
+the `BackendUnreachable` page (`src/components/BackendUnreachable.tsx`): a full-screen
+Mantine-styled message with a "Try again" button and support contact details.
+
+Support contact info is stored in `src/config.ts` (`SUPPORT_EMAIL`, `SUPPORT_HOURS`).
+Edit that file to set the real values before going live.

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { devtools } from "@tanstack/devtools-vite";
 
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
@@ -22,6 +22,11 @@ const config = defineConfig({
   build: {
     outDir: "../api/static/dist", // embed target inside the api module
     emptyOutDir: true,
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
   },
 });
 

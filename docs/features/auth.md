@@ -120,7 +120,7 @@ api/features/auth/
 
 ```
 web/src/lib/
-  api.ts           shared HTTP client (api.get/post/put/patch/delete, ApiError)
+  api.ts           shared HTTP client (api.get/post/put/patch/delete, ApiError, NetworkError)
 
 web/src/features/auth/
   api.ts           auth-specific wrappers + TanStack Query option factories
@@ -149,8 +149,13 @@ const { user, isAuthenticated, isLoading } = useAuth();
 
 `web/src/routes/_authenticated.tsx` is a pathless TanStack Router layout route. Its
 `beforeLoad` calls `queryClient.ensureQueryData(meQueryOptions())` and throws a
-redirect to `/auth/login?redirect=<current href>` when the result is `null`. Any
-route file placed under `src/routes/_authenticated/` inherits this guard automatically.
+redirect to `/auth/login?redirect=<current href>` when the result is `null` (clean 401).
+Any route file placed under `src/routes/_authenticated/` inherits this guard automatically.
+
+If `/auth/me` throws a `NetworkError` (server unreachable, not a 401), the guard does
+**not** redirect to login. Instead, the router's `defaultErrorComponent`
+(`src/components/RootErrorComponent.tsx`) catches the error and renders the
+`BackendUnreachable` page — a styled full-screen message with retry and support contact.
 
 The resolved `user` is returned from `beforeLoad` and injected into router context, so
 child routes can read it via `Route.useRouteContext().user` without an extra fetch.

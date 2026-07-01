@@ -15,6 +15,8 @@
  *     FormData / Blob / string / etc. are passed through untouched
  *   - deserialize JSON responses automatically; return undefined for 204/empty bodies
  *   - throw ApiError on non-ok responses (status + body available for branching)
+ *   - throw NetworkError when the request never reaches the server (offline, DNS,
+ *     connection refused) — distinguishable from ApiError because it has no .status
  */
 
 // Vite proxies /api → :8080 in dev; same origin in prod.
@@ -23,6 +25,18 @@ const BASE_PATH = import.meta.env.VITE_API_BASE_PATH ?? "/api/v0";
 // ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
+
+/**
+ * Thrown when the request never reached the server — the network is offline,
+ * DNS failed, or the connection was refused. Distinct from ApiError: there is
+ * no HTTP status, only the underlying fetch TypeError in `.cause`.
+ */
+export class NetworkError extends Error {
+  constructor(readonly cause: unknown) {
+    super("Unable to reach the server");
+    this.name = "NetworkError";
+  }
+}
 
 /** Thrown by every api.* helper on a non-ok HTTP response. */
 export class ApiError extends Error {
@@ -90,13 +104,20 @@ async function request<T>(
     }
   }
 
-  const res = await fetch(`${BASE_PATH}${path}`, {
-    method,
-    body: resolvedBody,
-    headers: resolvedHeaders,
-    credentials,
-    ...rest,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_PATH}${path}`, {
+      method,
+      body: resolvedBody,
+      headers: resolvedHeaders,
+      credentials,
+      ...rest,
+    });
+  } catch (e) {
+    // fetch() rejects (typically TypeError) only when the request never reached
+    // the server — offline, DNS failure, connection refused.
+    throw new NetworkError(e);
+  }
 
   if (!res.ok) {
     const errorBody = await parseBody(res).catch(() => res.statusText);
