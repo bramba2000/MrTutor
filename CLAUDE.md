@@ -4,34 +4,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-`mrtutor` is a Go HTTP API backed by SQLite. It is a Go workspace (`go.work`) monorepo
-with two modules:
+`mrtutor` is a full-stack web application: a Go HTTP API backed by SQLite with a
+React SPA embedded directly into the binary. It is a Go workspace (`go.work`) monorepo
+with three modules:
 
-- `api/` — the application (module `mrtutor/api`)
-- `gotools/` — a tools-only module pinning code-generation tools (`sqlc`, `moq`) via Go's
-  `tool` directive, so they run as `go tool <name>` without polluting the app's dependencies.
+- `api/` — the Go application (module `mrtutor/api`)
+- `gotools/` — pinned codegen tools (`sqlc`, `moq`) via Go's `tool` directive, so
+  they run as `go tool <name>` without polluting app dependencies.
+- `web/` — the React frontend (not a Go module; managed by Bun + Vite)
 
 Tasks are driven by [Taskfile](https://taskfile.dev). The root `Taskfile.yml` includes
-`api/Taskfile.yml` under the `api:` namespace, with its working dir set to `api/`.
+`api/Taskfile.yml` under `api:` (working dir `api/`) and `web/Taskfile.yml` under
+`web:` (working dir `web/`).
 
 ## Common commands
 
 Run from the repo root:
 
 ```bash
-task api:run          # go run ./ in api/  (dev mode, auto-migrates on startup)
-task api:test         # unit tests only (excludes /test/e2e and /test/integration); runs `generate` first
+task dev              # run API + Vite dev server together (Ctrl-C stops both)
+task build            # production build: frontend → api/static/dist, then Go binary
+
+task api:run          # Go server only (port 8080, auto-migrates in dev)
+task api:test         # backend unit tests; runs `generate` first
 task api:integration  # integration tests (go test ./test/integration/ -it)
 task api:e2e          # end-to-end tests (go test ./test/e2e/ -e2e)
 task api:verify       # test → integration → e2e, failfast
 task api:sqlcgen      # regenerate sqlc query code from SQL
 task api:generate     # go generate ./api/... (regenerates moq mocks)
+
+task web:dev          # Vite dev server (port 3000, proxies /api → :8080)
+task web:build        # build frontend into api/static/dist/
+task web:test         # Vitest unit tests
+task web:generate-routes  # regenerate routeTree.gen.ts (auto-runs on dev server start)
 ```
 
-Integration and e2e tests are gated behind the `-it` / `-e2e` flags (see `TestMain` in each
-suite) — running `go test ./...` directly will skip them. All test tasks set `APP_ENV=test`.
+Backend integration and e2e tests are gated behind `-it` / `-e2e` flags — `go test ./...`
+skips them. All backend test tasks set `APP_ENV=test`.
 
-Run a single test directly (the API module runs from `api/`):
+Run a single backend test directly (from `api/`):
 
 ```bash
 cd api && go test ./features/auth/ -run TestServiceLogin
@@ -40,101 +51,168 @@ cd api && go test ./test/integration/ -it -run TestAuth   # remember the gate fl
 
 First-time setup: `scripts/setup-dev.sh` installs Go modules, `golang-migrate`, and `task`.
 
-## Code generation
+---
 
-Two generators; **regenerate after changing their inputs** (the `test` task does this for you):
+## Backend
+
+### Code generation
+
+Two generators; **regenerate after changing their inputs** (`task api:test` does this for you):
 
 - **sqlc** (`sqlc.yml`): reads schema from `db/migrations/` and queries from `db/queries/*.sql`,
-  emitting typed Go in `db/queries/*.sql.go`. Add a query by writing SQL in `db/queries/`, then
-  `task api:sqlcgen`.
+  emitting typed Go in `db/queries/*.sql.go`. Add a query in `db/queries/`, then `task api:sqlcgen`.
 - **moq** (`go:generate` directives in `*_test.go`): generates interface mocks via `go tool moq`.
-  Mocks are generated from the interfaces declared in feature packages (e.g. `Service`,
-  `principalRepository`, `sessionStore`) into `*_moq_test.go` / `*_mock_test.go`.
+  Mocks live in `*_moq_test.go` / `*_mock_test.go` beside the feature they test.
 
-SQL files are formatted with `sql-formatter` (config `.sql-formatter.json`); `scripts/format-sql.sh`
-runs it over `db/**/*.sql`.
-
-## Architecture
+SQL files are formatted with `sql-formatter` (config `.sql-formatter.json`);
+`scripts/format-sql.sh` runs it over `db/**/*.sql`.
 
 ### Feature module pattern
 
-Each feature lives in `api/features/<name>/` and follows a layered structure wired together by
-`InitModule`:
+Each feature lives in `api/features/<name>/` and follows a layered structure wired
+by `InitModule`:
 
-- **`init.go`** — declares the domain types and the package's interfaces (`Service`, repository,
-  store interfaces, and a `module` interface combining `Service` + `RegisterRoutes`). `InitModule`
-  constructs the concrete implementations and returns an anonymous struct embedding the service and
-  controller. This is the only exported constructor; it also registers any background jobs.
-- **`controller.go`** — HTTP layer. Builds handlers via `httpbind` and registers routes on a mux.
-- **`service.go`** — business logic (`serviceImpl`), depends only on the package's interfaces.
-- **`repository.go`** — data access; wraps generated `db/queries` and maps `sql.ErrNoRows` to
-  domain errors (e.g. `apierrors.NotFoundError`).
+- **`init.go`** — domain types, interfaces (`Service`, repository, store interfaces,
+  and a `module` combining `Service` + `RegisterRoutes`). `InitModule` constructs
+  concrete implementations and returns an anonymous struct embedding them. This is the
+  only exported constructor; it also registers background jobs.
+- **`controller.go`** — HTTP layer. Builds handlers via `httpbind` and registers routes.
+- **`service.go`** — business logic (`serviceImpl`), depends only on package interfaces.
+- **`repository.go`** — data access; wraps generated `db/queries` and maps
+  `sql.ErrNoRows` to domain errors.
 - **`mapper.go`** — converts between sqlc row models and domain types.
 
-To add a feature, mirror this layout and call its `InitModule(...).RegisterRoutes(mux)` from
-`api/routes.go::addRoutes`.
+To add a feature, mirror this layout and call `InitModule(...).RegisterRoutes(mux)`
+from `api/routes.go::addRoutes`.
 
 ### Request pipeline (`transport/httpbind`)
 
-`httpbind.NewHandler[In, Out]` composes a `decode → service fn → encode` pipeline into an
-`http.Handler`. `NewNoOutputHandler` is the variant for handlers with no response body. Decoders/
-encoders are generic helpers (`NewJSONDecoder`, `NewJSONEncoder`). If the decoded input implements
-`Validate() error`, it is validated automatically before the service call.
+`httpbind.NewHandler[In, Out]` composes a `decode → service fn → encode` pipeline
+into an `http.Handler`. `NewNoOutputHandler` is the variant for handlers with no
+response body. If the decoded input implements `Validate() error`, it is validated
+automatically before the service call.
 
 `writeError` is the single place that maps domain errors to HTTP status codes
-(`validation.Error` → 400, `apierrors.NotFoundError` → 404, `apierrors.ErrUnauthorized` → 401,
-else 500). Add new error mappings there rather than in handlers.
+(`validation.Error` → 400, `NotFoundError` → 404, `ErrUnauthorized` → 401, else 500).
+Add new error mappings there, not in handlers.
 
 ### Errors & validation
 
-- `api/errors/` holds domain error types (`NotFoundError`, sentinel `ErrUnauthorized`, …).
-- `api/validation/` holds reusable validators; request structs implement `Validate()` and
-  accumulate human-readable problems into a `*validation.Error`.
+- `api/errors/` — domain error types (`NotFoundError`, sentinel `ErrUnauthorized`).
+- `api/validation/` — reusable validators; request structs implement `Validate()` and
+  accumulate problems into a `*validation.Error`.
 
 ### Database & migrations
 
-- SQLite via `mattn/go-sqlite3`. Connection is opened in `db/db.go`: `New()` (file, DSN from
-  `config.DSN`) or `NewInMemory()` (used by tests, preserving DSN query options).
-- Migrations are SQL files in `db/migrations/`, **embedded** via `//go:embed` and run with
-  `golang-migrate` (`migrations.NewWithDb`). On startup `main.go` auto-runs migrations **only in
-  DEV/TEST**; PROD does not auto-migrate. `cmd/migrate/` is the standalone migration runner for
-  prod/manual use. Migration files follow the `<timestamp>_<name>.{up,down}.sql` convention.
+- SQLite via `mattn/go-sqlite3`. `db/db.go`: `New()` (file, DSN from `config.DSN`) or
+  `NewInMemory()` (used by tests).
+- Migrations in `db/migrations/`, **embedded** via `//go:embed`, run with `golang-migrate`.
+  Auto-runs on startup in DEV/TEST only. `cmd/migrate/` is the standalone runner for prod.
+  Convention: `<timestamp>_<name>.{up,down}.sql`.
 
 ### Server lifecycle
 
-`main.go` wires dependencies (DB, scheduler, server) and handles graceful shutdown: on
-SIGINT/SIGTERM it stops background jobs **first**, then drains in-flight HTTP requests within
-`config.ShutdownTimeout`. The `/health` endpoint returns 503 once shutdown begins
-(`isShuttingDownServer`). Routes are mounted under `config.ApiBasePath` (default `/api/v0`) with
-logging middleware applied via `applyMiddleware`.
+`main.go` wires dependencies and handles graceful shutdown: SIGINT/SIGTERM stops
+background jobs **first**, then drains HTTP requests within `config.ShutdownTimeout`.
+`/health` returns 503 once shutdown begins.
 
 ### Background jobs
 
-The app uses `go-co-op/gocron` (constructed in `main.go`, started with `StartAsync`). Features
-register jobs inside their `InitModule` — e.g. auth schedules hourly cleanup of expired sessions
-via `sessionStore.DeleteExpiredSessions`. (Note: `api/scheduler/` contains an in-progress custom
-scheduler abstraction that is not yet wired into `main.go`.)
+`api/scheduler/` is an in-house scheduler for periodic and one-shot jobs.
+Features register jobs inside `InitModule`. See
+[docs/systems/scheduler.md](docs/systems/scheduler.md) for the full design.
 
-### Auth specifics
+### Backend configuration
 
-Passwords are hashed with bcrypt. Sessions use a random token stored in an HttpOnly cookie
-(`Secure` only in PROD) and carry both an **absolute** expiry (24h) and a sliding **idle** expiry
-(30m, refreshed asynchronously on each `VerifySession`).
+All config from env vars (with defaults):
 
-## Configuration
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `APP_ENV` | `dev` | `dev` \| `prod` \| `test`. Controls auto-migration, in-memory DB, cookie `Secure`. |
+| `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error`. |
+| `PORT` | `8080` | |
+| `BASEPATH` | `/api/v0` | API base path. If `/`, only the health mux is served. |
+| `SHUTDOWN_TIMEOUT` | `5s` | Go duration. |
 
-All config is read from env vars in `api/config/` (with defaults):
+### Backend testing layout
 
-- `APP_ENV` — `dev` | `prod` | `test` (default `dev`); controls auto-migration, in-memory DB,
-  and cookie `Secure` flag.
-- `LOG_LEVEL` — `debug` | `info` | `warn` | `error` (default `info`).
-- `PORT` — default `8080`.
-- `BASEPATH` — API base path (default `/api/v0`). If `/`, only the internal mux (health) is served.
-- `SHUTDOWN_TIMEOUT` — Go duration (default `5s`).
+- Unit tests beside the code (`*_test.go`), using moq-generated mocks.
+- `test/integration/` — in-memory DB + migrations + `httptest.Server` (gate: `-it`).
+- `test/e2e/` — builds the real binary and runs it on a free port (gate: `-e2e`).
+- `test/helpers.go` — shared helpers.
 
-## Testing layout
+---
 
-- Unit tests live beside the code (`*_test.go`), using moq-generated mocks.
-- `test/integration/` — spins up an in-memory DB + migrations + `httptest.Server` (gated by `-it`).
-- `test/e2e/` — builds the real binary and runs it as a subprocess on a free port (gated by `-e2e`).
-- `test/helpers.go` provides shared helpers (e.g. writing logs to the test artifact dir).
+## Frontend
+
+### Tech and conventions
+
+- **React 19 + TypeScript** — strict mode, no class components.
+- **TanStack Router** — file-based routing (`src/routes/`). Route tree is
+  auto-generated into `src/routeTree.gen.ts`; regenerate with `task web:generate-routes`
+  or let the dev server do it on restart.
+- **TanStack Query** — server state only. The `queryClient` lives in router context
+  (created in `src/integrations/tanstack-query/root-provider.tsx`, injected via
+  `getRouter()` in `src/router.tsx`). Components access it via `useQueryClient()`.
+- **Mantine** — UI component library. Use Mantine components first; avoid raw HTML
+  elements when a Mantine equivalent exists.
+- **No Tailwind** — removed. Style with Mantine props or CSS Modules (`.module.css`).
+- Path alias `#/*` → `./src/*`. Use `#/` imports everywhere, not relative paths across
+  feature boundaries.
+
+### Frontend feature pattern
+
+Each feature lives in `src/features/<name>/` with this layout:
+
+- **`api.ts`** — typed `fetch` wrappers and TanStack Query option factories
+  (`queryOptions`, `mutationFn`). This is the only place that makes HTTP calls.
+- **`useXxx.ts`** — read hooks (thin wrappers over `useQuery`).
+- **`mutations.ts`** — write hooks (`useMutation` wrappers).
+- **`pages/`** — page-level components, one per route.
+- **`components/`** — feature-local UI components.
+
+### Routing conventions
+
+Route files go in `src/routes/` following TanStack Router's file-based conventions:
+
+- **Protected pages** → `src/routes/_authenticated/<page>.tsx`. The `_authenticated`
+  pathless layout guard (in `src/routes/_authenticated.tsx`) runs `GET /auth/me` in
+  `beforeLoad` and redirects to `/auth/login?redirect=<href>` when unauthenticated.
+- **Public pages** → anywhere outside `_authenticated/` (e.g. `src/routes/auth/`).
+- Typed links: use `CustomLink` from `src/components/CustomLink.tsx` (a Mantine `Anchor`
+  wrapped with `createLink`). Do not use bare `<a>` tags for internal navigation.
+
+After adding or renaming a route file, run `task web:generate-routes`.
+
+### Auth state
+
+The current user is server state in the Query cache under key `["auth", "me"]`
+(exported as `authKeys.me`). There is no separate client store.
+
+```ts
+import { useAuth } from "#/features/auth/useAuth";
+const { user, isAuthenticated, isLoading } = useAuth();
+
+import { useLogin, useSignout, useRegister } from "#/features/auth/mutations";
+```
+
+Key invariant: **use `removeQueries` (not `invalidateQueries`) after login** so the
+pre-login `null` is evicted and `ensureQueryData` in `_authenticated beforeLoad` is
+forced to do a fresh fetch. See [docs/features/auth.md](docs/features/auth.md) for the
+full flow.
+
+### API client conventions
+
+- Always pass `credentials: "include"` so the session cookie travels with requests.
+- Go request structs have no `json` tags — field names are PascalCase in JSON.
+  Match them: `{ Token, Password }` not `{ token, password }`.
+- `401` from `GET /auth/me` returns `null` (not thrown). All other non-ok responses
+  throw an `Error` with the response text.
+- In dev, Vite proxies `/api/*` → `http://localhost:8080`. Use relative paths — no
+  base-URL config.
+
+### Frontend testing layout
+
+- Unit tests alongside source files (`*.test.ts`, `*.test.tsx`), run with Vitest.
+- Testing utilities: `@testing-library/react` + `jsdom` (configured in Vitest).
+- No integration or e2e tests yet for the frontend.
