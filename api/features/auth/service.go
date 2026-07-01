@@ -22,6 +22,7 @@ func (s *serviceImpl) VerifySession(ctx context.Context, sessionToken string) (*
 		if errors.Is(err, errSessionNotFound) {
 			return nil, apierrors.ErrUnauthorized
 		}
+		return nil, err
 	}
 	go func() {
 		// context.WithoutCancel so the refresh outlives the request context.

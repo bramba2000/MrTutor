@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	apierrors "mrtutor/api/errors"
 	"testing"
+	"time"
 )
 
 //go:generate go tool moq -out service_mock_test.go . principalRepository sessionStore
@@ -182,6 +183,63 @@ func TestService(t *testing.T) {
 				t.Fatal("Expected error got nil")
 			} else if !errors.Is(err, apierrors.ErrUnauthorized) {
 				t.Fatalf("Expected error to ErrUnauthorized but got %v", err)
+			}
+		})
+	})
+
+	t.Run("VerifySession", func(t *testing.T) {
+		t.Parallel()
+		const validToken = "valid-session-token"
+		principal := Principal{ID: 1, Username: "testuser", Email: "testuser@example.com"}
+
+		t.Run("Returns principal for a valid session", func(t *testing.T) {
+			store := &sessionStoreMock{
+				GetSessionFunc: func(ctx context.Context, sessionToken string) (*Principal, error) {
+					return &principal, nil
+				},
+				RefreshSessionFunc: func(ctx context.Context, sessionToken string) (time.Time, error) {
+					return time.Time{}, nil
+				},
+			}
+			svc := serviceImpl{sessionStore: store, logger: slog.Default()}
+
+			got, err := svc.VerifySession(context.Background(), validToken)
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if got == nil || got.ID != principal.ID {
+				t.Fatalf("expected principal %+v, got %+v", principal, got)
+			}
+		})
+
+		t.Run("Unauthorized when session not found", func(t *testing.T) {
+			store := &sessionStoreMock{
+				GetSessionFunc: func(ctx context.Context, sessionToken string) (*Principal, error) {
+					return nil, errSessionNotFound
+				},
+			}
+			svc := serviceImpl{sessionStore: store, logger: slog.Default()}
+
+			if _, err := svc.VerifySession(context.Background(), "missing"); !errors.Is(err, apierrors.ErrUnauthorized) {
+				t.Fatalf("expected ErrUnauthorized, got %v", err)
+			}
+		})
+
+		t.Run("Propagates unexpected store errors", func(t *testing.T) {
+			storeErr := errors.New("db unavailable")
+			store := &sessionStoreMock{
+				GetSessionFunc: func(ctx context.Context, sessionToken string) (*Principal, error) {
+					return nil, storeErr
+				},
+			}
+			svc := serviceImpl{sessionStore: store, logger: slog.Default()}
+
+			principal, err := svc.VerifySession(context.Background(), validToken)
+			if !errors.Is(err, storeErr) {
+				t.Fatalf("expected store error to propagate, got %v", err)
+			}
+			if principal != nil {
+				t.Fatalf("expected nil principal on error, got %+v", principal)
 			}
 		})
 	})

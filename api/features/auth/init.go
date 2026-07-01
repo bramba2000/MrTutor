@@ -114,6 +114,9 @@ type Service interface {
 type module interface {
 	Service
 	RegisterRoutes(mux *http.ServeMux)
+	// RequireAuth is middleware that other feature modules wrap their protected
+	// handlers with to enforce authentication and inject the principal.
+	RequireAuth(next http.Handler) http.Handler
 }
 
 func InitModule(db *sql.DB, logger *slog.Logger, sched *scheduler.Scheduler) module {

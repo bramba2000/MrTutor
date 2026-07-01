@@ -93,8 +93,23 @@ response body. If the decoded input implements `Validate() error`, it is validat
 automatically before the service call.
 
 `writeError` is the single place that maps domain errors to HTTP status codes
-(`validation.Error` → 400, `NotFoundError` → 404, `ErrUnauthorized` → 401, else 500).
-Add new error mappings there, not in handlers.
+(`validation.Error` → 400, `NotFoundError` → 404, `ErrUnauthorized` → 401,
+`ErrForbidden` → 403, else 500). Add new error mappings there, not in handlers.
+
+### Securing routes
+
+Authentication is HTTP-edge middleware; authorization is a service-layer concern.
+
+- **`auth.RequireAuth`** (`features/auth/controller.go`) — wraps a handler, verifies the
+  `session` cookie via `VerifySession`, returns `401` if invalid, else injects the
+  `*Principal` into the request context. Exposed on the `module` returned by
+  `auth.InitModule`, so other features protect handlers with
+  `mux.Handle("…", requireAuth(h))`.
+- **`auth.PrincipalFromContext(ctx)`** — typed accessor for the injected principal (do
+  not use bare context string keys). Behind `RequireAuth` it is always present.
+- **Authorization** — coarse role checks can become a `RequireRole` middleware after
+  `RequireAuth`; fine-grained/ownership checks belong in the service and should return
+  `errors.ErrForbidden` (→ 403). See [docs/features/auth.md](docs/features/auth.md#securing-routes).
 
 ### Errors & validation
 

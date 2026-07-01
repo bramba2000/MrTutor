@@ -65,6 +65,10 @@ Note: `/auth/me` uses lowercase JSON field names (a local response struct with `
 tags), unlike the register response which returns the raw `Principal` struct
 (PascalCase). Returns `401` when the session cookie is absent or expired.
 
+`/auth/me` is itself a protected route: it is registered as
+`RequireAuth(MeHandler())`, so authentication runs in the middleware and the handler
+just reads the principal from the request context (see [Securing routes](#securing-routes)).
+
 ## Session mechanism
 
 Sessions are stored in SQLite. A session has two expiries:
@@ -99,8 +103,57 @@ type Principal struct {
 }
 ```
 
-There is no role field — the identity is `Username` + `Email`. Authorization is a
-future concern.
+There is no role field — the identity is `Username` + `Email`. Role- and
+permission-based authorization are future concerns (see [Securing routes](#securing-routes)).
+
+## Securing routes
+
+The security model has two layers, applied at different points in the request path:
+
+1. **Authentication** — *who are you?* — at the HTTP edge, via the `RequireAuth`
+   middleware.
+2. **Authorization** — *may you do this?* — at the service layer, once the request
+   body and target resource are available. (Not yet implemented; see below.)
+
+### RequireAuth (authentication)
+
+`controller.RequireAuth(next http.Handler) http.Handler` is middleware that:
+
+- reads the `session` cookie and calls `Service.VerifySession`;
+- responds `401` and stops the chain if the session is missing or invalid;
+- otherwise stores the resolved `*Principal` in the request context and calls `next`.
+
+It is exposed on the `module` interface returned by `InitModule`, so other feature
+modules can protect their handlers by wrapping them:
+
+```go
+// in another feature's RegisterRoutes, given the auth module's RequireAuth:
+mux.Handle("GET /items/{id}", requireAuth(itemController.GetHandler()))
+```
+
+Downstream handlers read the principal from the context with the typed accessor
+(never a bare context string key):
+
+```go
+principal, ok := auth.PrincipalFromContext(r.Context())
+// behind RequireAuth, ok is always true
+```
+
+`WithPrincipal` / `PrincipalFromContext` live in `api/features/auth/context.go` and use
+an unexported key type so principal values cannot collide with other packages' context
+keys.
+
+### Authorization (roles & ownership) — planned
+
+`RequireAuth` only answers *authenticated or not*. Finer-grained rules slot in without
+changing the middleware:
+
+- **Roles/permissions** (coarse): once `Principal` carries a role (the `users.type`
+  column — `ADMIN` / `STUDENT` / `TUTOR` — is being added), a `RequireRole(...Role)`
+  middleware can gate a route after `RequireAuth`.
+- **Ownership** (fine, resource-level): decisions that need the decoded body or a DB
+  lookup belong in the service layer. Return `errors.ErrForbidden` — `httpbind.writeError`
+  already maps it to `403` (distinct from `ErrUnauthorized` → `401`).
 
 ## Backend layout
 
@@ -108,7 +161,8 @@ future concern.
 api/features/auth/
   init.go          domain types, interfaces (Service, principalRepository,
                    sessionStore), InitModule (wires everything, registers cleanup job)
-  controller.go    HTTP handlers via httpbind; RegisterRoutes
+  controller.go    HTTP handlers via httpbind; RequireAuth middleware; RegisterRoutes
+  context.go       WithPrincipal / PrincipalFromContext (typed request-context key)
   service.go       business logic (Login, Register, Logout, VerifySession)
   repository.go    SQL access; maps sql.ErrNoRows → domain errors
   mapper.go        sqlc row ↔ Principal conversions

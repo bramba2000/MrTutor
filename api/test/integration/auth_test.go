@@ -112,6 +112,43 @@ func TestAuthModule(t *testing.T) {
 		}
 	})
 
+	t.Run("Me returns principal when authenticated", func(t *testing.T) {
+		registerReq := generateRandomRegisterRequest()
+		principal, err := module.Register(t.Context(), registerReq)
+		if err != nil {
+			t.Fatalf("Failed to register user: %v", err)
+		}
+
+		req, err := http.NewRequest(http.MethodGet, url+"/auth/me", http.NoBody)
+		if err != nil {
+			t.Fatalf("Failed to create me request: %v", err)
+		}
+		req.AddCookie(&http.Cookie{Name: "session", Value: principal.SessionToken})
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to send me request: %v", err)
+		}
+		defer resp.Body.Close() // nolint
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200 OK, got %d", resp.StatusCode)
+			logResponseBody(t, resp)
+		}
+	})
+
+	t.Run("Me returns 401 without session cookie", func(t *testing.T) {
+		resp, err := client.Get(url + "/auth/me")
+		if err != nil {
+			t.Fatalf("Failed to send me request: %v", err)
+		}
+		defer resp.Body.Close() // nolint
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected 401 Unauthorized, got %d", resp.StatusCode)
+			logResponseBody(t, resp)
+		}
+	})
+
 	t.Run("Can logout after login", func(t *testing.T) {
 		principal, err := module.Register(t.Context(), generateRandomRegisterRequest())
 		if err != nil {

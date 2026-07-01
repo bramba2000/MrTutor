@@ -26,6 +26,9 @@ func writeError(w http.ResponseWriter, err error) {
 	} else if errors.Is(err, apierrors.ErrUnauthorized) {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
+	} else if errors.Is(err, apierrors.ErrForbidden) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
 	} else {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

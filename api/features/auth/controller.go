@@ -59,6 +59,31 @@ func (c controller) RegisterHandler() http.Handler {
 	)
 }
 
+// RequireAuth authenticates the request from its session cookie and, on success,
+// stores the resolved principal in the request context (retrieve it with
+// PrincipalFromContext). It responds 401 and stops the chain when the session is
+// missing or invalid, so downstream handlers can assume an authenticated principal.
+//
+// It is the authentication layer of the security model; fine-grained
+// authorization (roles, ownership) is a separate service-level concern.
+func (c controller) RequireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var token string
+		if cookie, err := r.Cookie(sessionCookieName); err == nil {
+			token = cookie.Value
+		}
+
+		principal, err := c.service.VerifySession(r.Context(), token)
+		if err != nil || principal == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := WithPrincipal(r.Context(), principal)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (c controller) MeHandler() http.Handler {
 	type PrincipalResponse struct {
 		ID       int64  `json:"id"`
@@ -66,32 +91,29 @@ func (c controller) MeHandler() http.Handler {
 		Email    string `json:"email"`
 	}
 
-	return httpbind.NewHandler(
-		func(r *http.Request) (string, error) {
-			cookie, err := r.Cookie(sessionCookieName)
-			if err != nil {
-				// No cookie → pass empty token; VerifySession returns ErrUnauthorized → 401.
-				return "", nil
-			}
-			return cookie.Value, nil
-		},
-		c.service.VerifySession,
-		func(w http.ResponseWriter, principal *Principal) error {
-			response := PrincipalResponse{
-				ID:       principal.ID,
-				Username: principal.Username,
-				Email:    principal.Email,
-			}
-			return httpbind.NewJSONEncoder[PrincipalResponse](http.StatusOK)(w, response)
-		},
-	)
+	// Behind RequireAuth, so the principal is always present in the context.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := PrincipalFromContext(r.Context())
+		if !ok {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		response := PrincipalResponse{
+			ID:       principal.ID,
+			Username: principal.Username,
+			Email:    principal.Email,
+		}
+		if err := httpbind.NewJSONEncoder[PrincipalResponse](http.StatusOK)(w, response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
 }
 
 func (c controller) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /auth/login", c.LoginHandler())
 	mux.Handle("POST /auth/logout", c.LogoutHandler())
 	mux.Handle("POST /auth/register", c.RegisterHandler())
-	mux.Handle("GET /auth/me", c.MeHandler())
+	mux.Handle("GET /auth/me", c.RequireAuth(c.MeHandler()))
 }
 
 func NewSessionToken(session Session) *http.Cookie {

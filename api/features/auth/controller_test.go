@@ -138,6 +138,10 @@ func TestController(t *testing.T) {
 	})
 
 	t.Run("Me endpoint", func(t *testing.T) {
+		// MeHandler reads the principal that RequireAuth injects, so it is
+		// always exercised through the RequireAuth wrapper here.
+		meHandler := controller.RequireAuth(controller.MeHandler())
+
 		t.Run("Status 200 when logged in", func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, "/me", nil)
 			if err != nil {
@@ -145,7 +149,7 @@ func TestController(t *testing.T) {
 			}
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: validSessionToken})
 			w := httptest.NewRecorder()
-			controller.MeHandler().ServeHTTP(w, req)
+			meHandler.ServeHTTP(w, req)
 			if w.Code != http.StatusOK {
 				t.Errorf("expected status code %d, got %d; body: %s", http.StatusOK, w.Code, w.Body.String())
 			}
@@ -154,9 +158,64 @@ func TestController(t *testing.T) {
 		t.Run("Status 401 when no session cookie", func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/me", nil)
 			w := httptest.NewRecorder()
-			controller.MeHandler().ServeHTTP(w, req)
+			meHandler.ServeHTTP(w, req)
 			if w.Code != http.StatusUnauthorized {
 				t.Errorf("expected status code %d, got %d; body: %s", http.StatusUnauthorized, w.Code, w.Body.String())
+			}
+		})
+	})
+
+	t.Run("RequireAuth middleware", func(t *testing.T) {
+		newProtected := func() (http.Handler, *bool) {
+			reached := new(bool)
+			h := controller.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				*reached = true
+				if _, ok := PrincipalFromContext(r.Context()); !ok {
+					t.Error("expected principal in context")
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			return h, reached
+		}
+
+		t.Run("injects principal and calls next on valid session", func(t *testing.T) {
+			h, reached := newProtected()
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: validSessionToken})
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if !*reached {
+				t.Error("expected next handler to be called")
+			}
+			if w.Code != http.StatusNoContent {
+				t.Errorf("expected status code %d, got %d", http.StatusNoContent, w.Code)
+			}
+		})
+
+		t.Run("Status 401 and does not call next when invalid session", func(t *testing.T) {
+			h, reached := newProtected()
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "invalid"})
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if *reached {
+				t.Error("expected next handler NOT to be called")
+			}
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("expected status code %d, got %d", http.StatusUnauthorized, w.Code)
+			}
+		})
+
+		t.Run("Status 401 when no session cookie", func(t *testing.T) {
+			h, reached := newProtected()
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if *reached {
+				t.Error("expected next handler NOT to be called")
+			}
+			if w.Code != http.StatusUnauthorized {
+				t.Errorf("expected status code %d, got %d", http.StatusUnauthorized, w.Code)
 			}
 		})
 	})
