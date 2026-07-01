@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { api, ApiError } from "#/lib/api";
 
 // Principal mirrors the /auth/me JSON response (lowercase field names from the server).
 export interface Principal {
@@ -14,14 +15,14 @@ export const authKeys = {
 // --- /auth/me ----------------------------------------------------------
 
 async function getMe(): Promise<Principal | null> {
-  const res = await fetch("/api/v0/auth/me", { credentials: "include" });
-  if (res.status === 401) {
-    return null; // unauthenticated — not an error, guards branch on null
+  try {
+    return await api.get<Principal>("/auth/me");
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      return null; // unauthenticated — not an error, guards branch on null
+    }
+    throw e;
   }
-  if (!res.ok) {
-    throw new Error(`GET /auth/me failed: ${res.status} ${res.statusText}`);
-  }
-  return res.json() as Promise<Principal>;
 }
 
 export function meQueryOptions() {
@@ -41,31 +42,20 @@ export interface LoginCredentials {
 }
 
 export async function login(credentials: LoginCredentials): Promise<void> {
-  const res = await fetch("/api/v0/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
-    credentials: "include",
-  });
-  if (res.status === 401) {
-    throw new Error("Invalid credentials");
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(text || `Login failed: ${res.status}`);
+  try {
+    await api.post("/auth/login", credentials);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      throw new Error("Invalid credentials");
+    }
+    throw e;
   }
 }
 
 // --- /auth/logout ------------------------------------------------------
 
 export async function logout(): Promise<void> {
-  const res = await fetch("/api/v0/auth/logout", {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!res.ok) {
-    throw new Error(`Logout failed: ${res.status}`);
-  }
+  await api.post("/auth/logout");
 }
 
 // --- /auth/register ----------------------------------------------------
@@ -79,18 +69,12 @@ export interface RegisterCredentials {
 export async function register(
   credentials: RegisterCredentials,
 ): Promise<Principal> {
-  const res = await fetch("/api/v0/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
-    credentials: "include",
-  });
-  if (res.status === 401) {
-    throw new Error("Invalid credentials");
+  try {
+    return await api.post<Principal>("/auth/register", credentials);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      throw new Error("Invalid credentials");
+    }
+    throw e;
   }
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(text || `Register failed: ${res.status}`);
-  }
-  return res.json() as Promise<Principal>;
 }
