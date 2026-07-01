@@ -3,10 +3,10 @@ import {
   redirect,
   type SearchSchemaInput,
 } from "@tanstack/react-router";
-import { LoginPage } from "#/features/auth/pages/LoginPage";
+import { RegisterPage } from "#/features/auth/pages/RegisterPage";
 import { meQueryOptions } from "#/features/auth/api";
 
-export const Route = createFileRoute("/auth/login")({
+export const Route = createFileRoute("/auth/register")({
   validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
@@ -17,5 +17,5 @@ export const Route = createFileRoute("/auth/login")({
       throw redirect({ to: "/" });
     }
   },
-  component: LoginPage,
+  component: RegisterPage,
 });

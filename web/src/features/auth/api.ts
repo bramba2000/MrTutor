@@ -67,3 +67,30 @@ export async function logout(): Promise<void> {
     throw new Error(`Logout failed: ${res.status}`);
   }
 }
+
+// --- /auth/register ----------------------------------------------------
+
+export interface RegisterCredentials {
+  Username: string;
+  Email: string;
+  Password: string;
+}
+
+export async function register(
+  credentials: RegisterCredentials,
+): Promise<Principal> {
+  const res = await fetch("/api/v0/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
+    credentials: "include",
+  });
+  if (res.status === 401) {
+    throw new Error("Invalid credentials");
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(text || `Register failed: ${res.status}`);
+  }
+  return res.json() as Promise<Principal>;
+}

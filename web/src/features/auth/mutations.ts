@@ -1,6 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { authKeys, login, logout, type LoginCredentials } from "./api";
+import {
+  authKeys,
+  login,
+  logout,
+  register,
+  type LoginCredentials,
+  type RegisterCredentials,
+  type Principal,
+} from "./api";
 
 /**
  * Mutation for logging out.
@@ -37,7 +45,25 @@ export function useLogin() {
   return useMutation<void, Error, LoginCredentials>({
     mutationFn: login,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: authKeys.me });
+      // Remove the pre-login null from cache so the next ensureQueryData
+      // (in _authenticated beforeLoad) fetches fresh instead of returning null.
+      queryClient.removeQueries({ queryKey: authKeys.me });
+    },
+  });
+}
+
+/**
+ * Mutation for registering a new user.
+ *
+ * The onSuccess callback sets the /auth/me cache entry to the newly registered user.
+ */
+export function useRegister() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Principal, Error, RegisterCredentials>({
+    mutationFn: register,
+    onSuccess: (principal) => {
+      queryClient.setQueryData(authKeys.me, principal);
     },
   });
 }
