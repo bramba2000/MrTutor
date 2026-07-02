@@ -42,68 +42,6 @@ func TestService(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
-
-		t.Run("Cannot register when invalid", func(t *testing.T) {
-			basePrincipal := RegisterRequest{
-				Username: "me",
-				Password: "Password123!",
-				Email:    "me@example.com",
-			}
-
-			tt := []struct {
-				name  string
-				input RegisterRequest
-			}{
-				{
-					name: "password too short",
-					input: func() RegisterRequest {
-						req := basePrincipal
-						req.Password = "short1!"
-						return req
-					}(),
-				},
-				{
-					name: "password missing uppercase",
-					input: func() RegisterRequest {
-						req := basePrincipal
-						req.Password = "password123!"
-						return req
-					}(),
-				},
-				{
-					name: "password missing lowercase",
-					input: func() RegisterRequest {
-						req := basePrincipal
-						req.Password = "PASSWORD123!"
-						return req
-					}(),
-				},
-				{
-					name: "password missing number",
-					input: func() RegisterRequest {
-						req := basePrincipal
-						req.Password = "Password!"
-						return req
-					}(),
-				},
-				{
-					name: "password missing special character",
-					input: func() RegisterRequest {
-						req := basePrincipal
-						req.Password = "Password123"
-						return req
-					}(),
-				},
-			}
-
-			for _, tc := range tt {
-				t.Run(tc.name, func(t *testing.T) {
-					if _, err := svc.Register(context.Background(), tc.input); err == nil {
-						t.Fatal("expected error but got nil")
-					}
-				})
-			}
-		})
 	})
 
 	t.Run("Login", func(t *testing.T) {

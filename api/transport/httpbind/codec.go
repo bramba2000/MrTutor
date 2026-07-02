@@ -3,12 +3,15 @@ package httpbind
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 )
 
 var (
-	ErrEmptyRequestBody        = errors.New("request body is empty")
-	ErrUnacceptableContentType = errors.New("cannot decode request body: unacceptable content type")
+	ErrEmptyRequestBody         = errors.New("request body is empty")
+	ErrUnacceptableContentType  = errors.New("cannot decode request body: unacceptable content type")
+	ErrFailedToParseRequestBody = errors.New("failed to parse request body")
 )
 
 // NewJSONDecoder returns a decoder that reads a JSON request body into In.
@@ -17,12 +20,12 @@ func NewJSONDecoder[In any]() func(*http.Request) (In, error) {
 		if r.Header.Get("Content-Type") != "application/json" {
 			return *new(In), ErrUnacceptableContentType
 		}
-		if r.Body == nil {
-			return *new(In), ErrEmptyRequestBody
-		}
 		var in In
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-			return *new(In), err
+			if errors.Is(err, io.EOF) {
+				return *new(In), ErrEmptyRequestBody
+			}
+			return *new(In), fmt.Errorf("%w: %w", ErrFailedToParseRequestBody, err)
 		}
 		return in, nil
 	}

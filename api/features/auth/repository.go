@@ -12,15 +12,22 @@ import (
 const sessionDuration = 24 * time.Hour
 const sessionIdleDuration = 30 * time.Minute
 
-type sqlRepository struct {
-	db      *sql.DB
-	queries *queries.Queries
-}
-
 var (
 	errSessionNotFound   = apierrors.NotFoundError{Entity: "session"}
 	errPrincipalNotFound = apierrors.NotFoundError{Entity: "principal"}
 )
+
+// ------- principalRepository --------------------------------------
+
+type principalRepository interface {
+	CreatePrincipal(ctx context.Context, principal Principal) (*Principal, error)
+	FindPrincipalByEmailOrUsername(ctx context.Context, token string) (*Principal, error)
+}
+
+type sqlRepository struct {
+	db      *sql.DB
+	queries *queries.Queries
+}
 
 // CreatePrincipal implements [principalRepository].
 func (s *sqlRepository) CreatePrincipal(ctx context.Context, principal Principal) (*Principal, error) {
@@ -41,6 +48,15 @@ func (s *sqlRepository) FindPrincipalByEmailOrUsername(ctx context.Context, toke
 		return nil, err
 	}
 	return new(UserToPrincipal(userModel)), nil
+}
+
+// ------ sessionStore --------------------------------------
+
+type sessionStore interface {
+	GetSession(ctx context.Context, sessionToken string) (*Principal, error)
+	CreateSession(ctx context.Context, principalID int64) (*Session, error)
+	RefreshSession(ctx context.Context, sessionToken string) (time.Time, error)
+	DeleteSession(ctx context.Context, sessionToken string) error
 }
 
 type sqlSessionStore struct {

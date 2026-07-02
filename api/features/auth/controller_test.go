@@ -10,6 +10,16 @@ import (
 	"testing"
 )
 
+func expectStatusCode(t *testing.T, w *httptest.ResponseRecorder, expected int) {
+	t.Helper()
+	if w.Code != expected {
+		t.Errorf("expected status code %d, got %d", expected, w.Code)
+	}
+	if w.Body.Len() > 0 {
+		t.Logf("response body: %s", w.Body.String())
+	}
+}
+
 //go:generate go tool moq -out controller_moq_test.go . Service
 
 func TestController(t *testing.T) {
@@ -54,13 +64,12 @@ func TestController(t *testing.T) {
 	}
 
 	t.Run("Login endpoint", func(t *testing.T) {
-		t.Run("Status 401 when no credentials", func(t *testing.T) {
+		t.Run("Status 400 when no credentials", func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/login", nil)
+			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			controller.LoginHandler().ServeHTTP(w, req)
-			if w.Code != http.StatusBadRequest {
-				t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
-			}
+			expectStatusCode(t, w, http.StatusBadRequest)
 		})
 
 		t.Run("Status 401 when invalid password", func(t *testing.T) {
@@ -69,11 +78,10 @@ func TestController(t *testing.T) {
 				Password: "invalid",
 			})
 			req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			controller.LoginHandler().ServeHTTP(w, req)
-			if w.Code != http.StatusUnauthorized {
-				t.Errorf("expected status code %d, got %d", http.StatusUnauthorized, w.Code)
-			}
+			expectStatusCode(t, w, http.StatusUnauthorized)
 		})
 
 		t.Run("Status 401 when invalid token", func(t *testing.T) {
@@ -82,11 +90,10 @@ func TestController(t *testing.T) {
 				Password: password,
 			})
 			req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			controller.LoginHandler().ServeHTTP(w, req)
-			if w.Code != http.StatusUnauthorized {
-				t.Errorf("expected status code %d, got %d", http.StatusUnauthorized, w.Code)
-			}
+			expectStatusCode(t, w, http.StatusUnauthorized)
 		})
 
 	})

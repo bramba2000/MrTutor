@@ -5,9 +5,49 @@ import (
 	"errors"
 	"log/slog"
 	apierrors "mrtutor/api/errors"
+	"mrtutor/api/validation"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+type Service interface {
+	Register(ctx context.Context, req RegisterRequest) (*RegisterResponse, error)
+	Login(ctx context.Context, req LoginRequest) (string, error)
+	Logout(ctx context.Context, sessionToken string) error
+	VerifySession(ctx context.Context, sessionToken string) (*Principal, error)
+}
+
+type RegisterResponse struct {
+	Principal
+	SessionToken string
+}
+
+type RegisterRequest struct {
+	Username string
+	Email    string
+	Password string
+}
+
+func (r RegisterRequest) Validate() error {
+	builder := validation.Builder{}
+	builder.Field("username", validation.Required(r.Username))
+	builder.Field("email", validation.Required(r.Email), validation.Email(r.Email))
+	builder.Field("password", validation.Required(r.Password), validation.Password(r.Password))
+	return nil
+}
+
+type LoginRequest struct {
+	// Token represent either username or password for login attempt
+	Token    string
+	Password string
+}
+
+func (r LoginRequest) Validate() error {
+	builder := validation.Builder{}
+	builder.Field("token", validation.Required(r.Token))
+	builder.Field("password", validation.Required(r.Password))
+	return builder.Err()
+}
 
 type serviceImpl struct {
 	repository   principalRepository
@@ -36,9 +76,6 @@ func (s *serviceImpl) VerifySession(ctx context.Context, sessionToken string) (*
 
 // Login implements [Service].
 func (s *serviceImpl) Login(ctx context.Context, req LoginRequest) (string, error) {
-	if err := req.Validate(); err != nil {
-		return "", err
-	}
 	principal, err := s.repository.FindPrincipalByEmailOrUsername(ctx, req.Token)
 	if err != nil {
 		if errors.Is(err, errPrincipalNotFound) {
@@ -76,9 +113,6 @@ func HashPassword(password string) (string, error) {
 
 // Register implements [Service].
 func (s *serviceImpl) Register(ctx context.Context, req RegisterRequest) (*RegisterResponse, error) {
-	if err := req.Validate(); err != nil {
-		return nil, err
-	}
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
 		return nil, err

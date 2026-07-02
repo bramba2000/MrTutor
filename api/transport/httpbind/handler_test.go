@@ -141,9 +141,11 @@ func TestHandler(t *testing.T) {
 				decode: func(r *http.Request) (struct{}, error) { return struct{}{}, nil },
 				fn: func(ctx context.Context, s struct{}) (struct{}, error) {
 					return struct{}{}, &validation.Error{
-						Problems: []string{
-							"invalid params",
-							"invalid username",
+						Problems: []validation.Problem{
+							{
+								Field:   "username",
+								Message: "is required",
+							},
 						},
 					}
 				},
@@ -152,8 +154,8 @@ func TestHandler(t *testing.T) {
 						matchStatusCode(http.StatusBadRequest)(r),
 						func(r *http.Response) string {
 							body, _ := io.ReadAll(r.Body)
-							if !strings.Contains(string(body), "params") || !strings.Contains(string(body), "username") {
-								return fmt.Sprintf("Expected error message to contain 'params' and 'username', got %s", string(body))
+							if !strings.Contains(string(body), "username") || !strings.Contains(string(body), "is required") {
+								return fmt.Sprintf("Expected error message to contain 'username' and 'is required', got %s", string(body))
 							}
 							return ""
 						}(r),

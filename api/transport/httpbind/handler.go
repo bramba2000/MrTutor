@@ -4,19 +4,16 @@ package httpbind
 
 import (
 	"context"
+	"mrtutor/api/validation"
 	"net/http"
 )
-
-type Validable interface {
-	Validate() error
-}
 
 func runDecode[In any](decode func(*http.Request) (In, error), r *http.Request) (In, error) {
 	in, err := decode(r)
 	if err != nil {
 		return *new(In), err
 	}
-	if validable, ok := any(in).(Validable); ok {
+	if validable, ok := any(in).(validation.Validator); ok {
 		if err := validable.Validate(); err != nil {
 			return *new(In), err
 		}

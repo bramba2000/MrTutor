@@ -14,7 +14,7 @@ func writeError(w http.ResponseWriter, err error) {
 	if validationErr, ok := errors.AsType[*validation.Error](err); ok {
 		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
-	} else if errors.Is(err, ErrEmptyRequestBody) {
+	} else if errors.Is(err, ErrEmptyRequestBody) || errors.Is(err, ErrFailedToParseRequestBody) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	} else if jsonInvalid, ok := errors.AsType[*json.SyntaxError](err); ok {
 		http.Error(w, jsonInvalid.Error(), http.StatusBadRequest)
