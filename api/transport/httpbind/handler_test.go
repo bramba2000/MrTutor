@@ -3,6 +3,7 @@ package httpbind_test
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	apierrors "mrtutor/api/errors"
@@ -67,7 +68,7 @@ func TestHandler(t *testing.T) {
 			{
 				name: "Decode error",
 				decode: func(r *http.Request) ([]int, error) {
-					return nil, http.ErrNotSupported
+					return nil, &json.SyntaxError{}
 				},
 				fn: func(ctx context.Context, in []int) (any, error) {
 					return in, nil
