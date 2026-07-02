@@ -33,7 +33,7 @@ func (r RegisterRequest) Validate() error {
 	builder.Field("username", validation.Required(r.Username))
 	builder.Field("email", validation.Required(r.Email), validation.Email(r.Email))
 	builder.Field("password", validation.Required(r.Password), validation.Password(r.Password))
-	return nil
+	return builder.Err()
 }
 
 type LoginRequest struct {

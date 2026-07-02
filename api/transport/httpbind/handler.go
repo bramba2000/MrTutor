@@ -34,6 +34,7 @@ func NewHandler[In, Out any](
 		in, err := runDecode(decode, r)
 		if err != nil {
 			writeError(w, err)
+			return
 		}
 
 		out, err := fn(r.Context(), in)

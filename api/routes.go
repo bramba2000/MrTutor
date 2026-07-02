@@ -15,6 +15,7 @@ func healthHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isShuttingDownServer.Load() {
 			http.Error(w, "Server is shutting down", http.StatusServiceUnavailable)
+			return
 		}
 		w.WriteHeader(http.StatusOK)
 	})
