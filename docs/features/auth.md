@@ -27,8 +27,8 @@ Request body (JSON, PascalCase — Go structs have no `json` tags):
 ```
 
 Validation: username required and not an email address; email must be valid; password
-must meet strength requirements (see `api/validation/`). Returns `400` with a plain-text
-list of problems on failure.
+must meet strength requirements (see `api/validation/`). Returns `400` on failure with a
+JSON body of per-field problems: `{ "problems": [{ "field": "email", "message": "…" }] }`.
 
 Response on success — `201 Created`:
 

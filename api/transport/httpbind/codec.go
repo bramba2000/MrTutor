@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 )
 
@@ -17,7 +18,9 @@ var (
 // NewJSONDecoder returns a decoder that reads a JSON request body into In.
 func NewJSONDecoder[In any]() func(*http.Request) (In, error) {
 	return func(r *http.Request) (In, error) {
-		if r.Header.Get("Content-Type") != "application/json" {
+		// Parse the media type so parameters like "; charset=utf-8" are tolerated.
+		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || mediaType != "application/json" {
 			return *new(In), ErrUnacceptableContentType
 		}
 		var in In

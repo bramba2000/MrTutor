@@ -40,15 +40,14 @@ func startServer(logger *slog.Logger, server *http.Server) {
 	}
 }
 
-// shutdownServer gracefully shuts down the HTTP server, allowing in-flight requests to complete before stopping the server.
-func shutdownServer(logger *slog.Logger, server *http.Server, stopRequestContext context.CancelFunc) {
+// shutdownServer gracefully shuts down the HTTP server, allowing in-flight requests to
+// complete before stopping the server. It drains within the deadline of the provided
+// context, which is shared with the rest of the shutdown sequence.
+func shutdownServer(ctx context.Context, logger *slog.Logger, server *http.Server, stopRequestContext context.CancelFunc) {
 	isShuttingDownServer.Store(true)
 	logger.Info("Initiating server shutdown")
 
-	shutdownContext, stopShutdown := context.WithTimeout(context.Background(), config.ShutdownTimeout)
-	defer stopShutdown()
-
-	if err := server.Shutdown(shutdownContext); err != nil {
+	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("Server shutdown error", "error", err)
 		os.Exit(ServerShutdownErrorExitCode)
 	} else {

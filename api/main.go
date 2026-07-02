@@ -93,13 +93,14 @@ func main() {
 		logger.Error("shutting down due to fatal task error", "error", context.Cause(appCtx))
 	}
 
-	// Stop background jobs first, then drain in-flight HTTP requests.
+	// Stop background jobs first, then drain in-flight HTTP requests. Both share a
+	// single ShutdownTimeout budget so total shutdown cannot exceed it.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), config.ShutdownTimeout)
 	defer cancel()
 	if err := sched.Shutdown(shutdownCtx); err != nil {
 		logger.Error("scheduler shutdown error", "error", err)
 	}
-	shutdownServer(logger, server, cancelServerCtx)
+	shutdownServer(shutdownCtx, logger, server, cancelServerCtx)
 
 	if isFatal {
 		os.Exit(FatalTaskErrorExitCode)
