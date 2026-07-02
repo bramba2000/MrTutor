@@ -87,12 +87,6 @@ func (c controller) RequireAuth(next http.Handler) http.Handler {
 }
 
 func (c controller) MeHandler() http.Handler {
-	type PrincipalResponse struct {
-		ID       int64  `json:"id"`
-		Username string `json:"username"`
-		Email    string `json:"email"`
-	}
-
 	// Runs behind RequireAuth, so the principal is always present; the missing case
 	// is defensive and maps to 401 via writeError.
 	return httpbind.NewHandler(
@@ -103,10 +97,10 @@ func (c controller) MeHandler() http.Handler {
 			}
 			return principal, nil
 		},
-		func(_ context.Context, p *Principal) (PrincipalResponse, error) {
-			return PrincipalResponse{ID: p.ID, Username: p.Username, Email: p.Email}, nil
+		func(_ context.Context, principal *Principal) (*Principal, error) {
+			return principal, nil
 		},
-		httpbind.NewJSONEncoder[PrincipalResponse](http.StatusOK),
+		httpbind.NewJSONEncoder[*Principal](http.StatusOK),
 	)
 }
 
