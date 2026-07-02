@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"context"
 	"mrtutor/api/config"
+	apierrors "mrtutor/api/errors"
 	"mrtutor/api/transport/httpbind"
 	"net/http"
 )
@@ -91,22 +93,21 @@ func (c controller) MeHandler() http.Handler {
 		Email    string `json:"email"`
 	}
 
-	// Behind RequireAuth, so the principal is always present in the context.
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principal, ok := PrincipalFromContext(r.Context())
-		if !ok {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		response := PrincipalResponse{
-			ID:       principal.ID,
-			Username: principal.Username,
-			Email:    principal.Email,
-		}
-		if err := httpbind.NewJSONEncoder[PrincipalResponse](http.StatusOK)(w, response); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
+	// Runs behind RequireAuth, so the principal is always present; the missing case
+	// is defensive and maps to 401 via writeError.
+	return httpbind.NewHandler(
+		func(r *http.Request) (*Principal, error) {
+			principal, ok := PrincipalFromContext(r.Context())
+			if !ok {
+				return nil, apierrors.ErrUnauthorized
+			}
+			return principal, nil
+		},
+		func(_ context.Context, p *Principal) (PrincipalResponse, error) {
+			return PrincipalResponse{ID: p.ID, Username: p.Username, Email: p.Email}, nil
+		},
+		httpbind.NewJSONEncoder[PrincipalResponse](http.StatusOK),
+	)
 }
 
 func (c controller) RegisterRoutes(mux *http.ServeMux) {

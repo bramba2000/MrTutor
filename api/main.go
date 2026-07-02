@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
+	"fmt"
 	"mrtutor/api/config"
 	"mrtutor/api/db"
 	"mrtutor/api/db/migrations"
@@ -25,38 +25,30 @@ const (
 	FatalTaskErrorExitCode
 )
 
-func setupDb(logger *slog.Logger) *sql.DB {
+func setupDb() (*sql.DB, error) {
 	var dbInstance *sql.DB
 	var err error
-
-	logger = logger.With("component", "setup")
 
 	if config.Mode == config.TEST {
 		dbInstance, err = db.NewInMemory()
 	} else {
 		dbInstance, err = db.New()
 	}
-
 	if err != nil {
-		logger.Error("failed to set up database", "error", err)
-		os.Exit(SetupDbErrorExitCode)
+		return nil, fmt.Errorf("set up database: %w", err)
 	}
 
 	if config.Mode == config.DEV || config.Mode == config.TEST {
 		m, err := migrations.NewWithDb(dbInstance)
-
 		if err != nil {
-			logger.Error("failed to create migration instance", "error", err)
-			os.Exit(SetupDbErrorExitCode)
+			return nil, fmt.Errorf("create migration instance: %w", err)
 		}
-
 		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-			logger.Error("failed to run database migrations", "error", err)
-			os.Exit(SetupDbErrorExitCode)
+			return nil, fmt.Errorf("run database migrations: %w", err)
 		}
 	}
 
-	return dbInstance
+	return dbInstance, nil
 }
 
 func main() {
@@ -67,7 +59,11 @@ func main() {
 	logger.Debug("starting server", "mode", config.Mode)
 
 	// Register dependencies
-	db := setupDb(logger)
+	db, err := setupDb()
+	if err != nil {
+		logger.With("component", "setup").Error("failed to set up database", "error", err)
+		os.Exit(SetupDbErrorExitCode)
+	}
 	defer db.Close()
 
 	// appCtx is cancelled by an OS signal OR by a fatal scheduled job, so both
