@@ -15,8 +15,8 @@ export function LoginPage() {
     const formData = new FormData(event.currentTarget);
     login.mutate(
       {
-        Password: formData.get("password") as string,
-        Token: formData.get("email") as string,
+        password: formData.get("password") as string,
+        token: formData.get("email") as string,
       },
       {
         onSuccess: () => navigate({ to: redirect ?? "/" }),

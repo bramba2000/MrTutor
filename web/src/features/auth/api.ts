@@ -6,6 +6,9 @@ export interface Principal {
   id: number;
   username: string;
   email: string;
+  createdAt: string;
+  modifiedAt: string;
+  role: string;
 }
 
 export const authKeys = {
@@ -37,8 +40,8 @@ export function meQueryOptions() {
 // --- /auth/login -------------------------------------------------------
 
 export interface LoginCredentials {
-  Token: string; // username or email (PascalCase to match Go LoginRequest)
-  Password: string;
+  token: string; // username or email (PascalCase to match Go LoginRequest)
+  password: string;
 }
 
 export async function login(credentials: LoginCredentials): Promise<void> {
@@ -61,9 +64,9 @@ export async function logout(): Promise<void> {
 // --- /auth/register ----------------------------------------------------
 
 export interface RegisterCredentials {
-  Username: string;
-  Email: string;
-  Password: string;
+  username: string;
+  email: string;
+  password: string;
 }
 
 export async function register(

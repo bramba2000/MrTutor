@@ -5,7 +5,7 @@ import classes from "./AuthPage.module.css";
 import { useRegister } from "../mutations";
 import { CustomLink } from "#/components/CustomLink";
 import { useForm } from "@mantine/form";
-import { problemsToFieldErrors, validationProblems } from "#/lib/api";
+import type { RegisterCredentials } from "../api";
 
 export function RegisterPage() {
   const { redirect } = Route.useSearch();
@@ -18,6 +18,8 @@ export function RegisterPage() {
       email: "",
       password: "",
       passwordConfirm: "",
+    } as RegisterCredentials & {
+      passwordConfirm: string;
     },
     validate: {
       username: (value) =>
@@ -33,18 +35,12 @@ export function RegisterPage() {
   function handleSubmit(values: typeof form.values) {
     register.mutate(
       {
-        Username: values.username,
-        Email: values.email,
-        Password: values.password,
+        username: values.username,
+        email: values.email,
+        password: values.password,
       },
       {
         onSuccess: () => navigate({ to: redirect ?? "/" }),
-        onError: (error) => {
-          // Server-side validation failures (400) map straight onto the fields;
-          // the Go field names (username/email/password) match the form's.
-          const problems = validationProblems(error);
-          if (problems) form.setErrors(problemsToFieldErrors(problems));
-        },
       },
     );
   }
