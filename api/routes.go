@@ -22,24 +22,22 @@ func healthHandler() http.Handler {
 }
 
 func addRoutes(mux *http.ServeMux, logger *slog.Logger, db *sql.DB, sched *scheduler.Scheduler) {
-	internalMux := http.NewServeMux()
-	internalMux.Handle("/health", healthHandler())
+	// Health is served at the root, outside the API base path and its logging
+	// middleware, so probes have a stable path and don't spam request logs.
+	mux.Handle("/health", healthHandler())
 
 	basePath := strings.TrimRight(config.ApiBasePath, "/")
 	if basePath == "" {
-		basePath = "/"
-	}
-
-	if basePath == "/" {
-		mux.Handle("/", internalMux)
+		// No API base path configured: only the health endpoint is served.
 		return
 	}
 
-	auth.InitModule(db, logger, sched).RegisterRoutes(internalMux)
+	apiMux := http.NewServeMux()
+	auth.InitModule(db, logger, sched).RegisterRoutes(apiMux)
 
 	// Apply global middleware to all routes under the base path
 	handler := applyMiddleware(
-		http.StripPrefix(basePath, internalMux),
+		http.StripPrefix(basePath, apiMux),
 		newLoggingMiddleware(logger),
 	)
 	mux.Handle(basePath+"/", handler)

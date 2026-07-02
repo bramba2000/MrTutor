@@ -114,8 +114,12 @@ Authentication is HTTP-edge middleware; authorization is a service-layer concern
 ### Errors & validation
 
 - `api/errors/` — domain error types (`NotFoundError`, sentinel `ErrUnauthorized`).
-- `api/validation/` — reusable validators; request structs implement `Validate()` and
-  accumulate problems into a `*validation.Error`.
+- `api/validation/` — reusable validators (`Required`, `Email`, `Password`). Request
+  structs implement `Validate()`; the idiomatic body is the declarative
+  `validation.Fields(validation.Field("name", Required(x), ...), ...)` helper, which
+  runs each field's validators and returns a `*validation.Error` (or nil). For
+  conditional logic use the chainable `validation.Builder` directly. `httpbind`
+  serializes `*validation.Error` as a JSON `{ "problems": [{ field, message }] }` body.
 
 ### Database & migrations
 
@@ -146,7 +150,7 @@ All config from env vars (with defaults):
 | `APP_ENV` | `dev` | `dev` \| `prod` \| `test`. Controls auto-migration, in-memory DB, cookie `Secure`. |
 | `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error`. |
 | `PORT` | `8080` | |
-| `BASEPATH` | `/api/v0` | API base path. If `/`, only the health mux is served. |
+| `BASEPATH` | `/api/v0` | API base path. `/health` is always served at the root (outside this prefix); if `BASEPATH` is `/`, only `/health` is served. |
 | `SHUTDOWN_TIMEOUT` | `5s` | Go duration. |
 
 ### Backend testing layout

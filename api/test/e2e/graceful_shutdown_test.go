@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"fmt"
-	"mrtutor/api/config"
 	"net/http"
 	"syscall"
 	"testing"
@@ -10,7 +9,7 @@ import (
 )
 
 func checkHealthy(t *testing.T, host string) error {
-	resp, err := doRequest(t, host, http.MethodGet, config.ApiBasePath+"/health", http.NoBody)
+	resp, err := doRequest(t, host, http.MethodGet, "/health", http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to make health request: %w", err)
 	}

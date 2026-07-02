@@ -29,11 +29,11 @@ type RegisterRequest struct {
 }
 
 func (r RegisterRequest) Validate() error {
-	builder := validation.Builder{}
-	builder.Field("username", validation.Required(r.Username))
-	builder.Field("email", validation.Required(r.Email), validation.Email(r.Email))
-	builder.Field("password", validation.Required(r.Password), validation.Password(r.Password))
-	return builder.Err()
+	return validation.Fields(
+		validation.Field("username", validation.Required(r.Username)),
+		validation.Field("email", validation.Required(r.Email), validation.Email(r.Email)),
+		validation.Field("password", validation.Required(r.Password), validation.Password(r.Password)),
+	)
 }
 
 type LoginRequest struct {
@@ -43,10 +43,10 @@ type LoginRequest struct {
 }
 
 func (r LoginRequest) Validate() error {
-	builder := validation.Builder{}
-	builder.Field("token", validation.Required(r.Token))
-	builder.Field("password", validation.Required(r.Password))
-	return builder.Err()
+	return validation.Fields(
+		validation.Field("token", validation.Required(r.Token)),
+		validation.Field("password", validation.Required(r.Password)),
+	)
 }
 
 type serviceImpl struct {
