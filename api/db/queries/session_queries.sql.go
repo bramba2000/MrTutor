@@ -69,6 +69,35 @@ func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
+const getPrincipalBySessionId = `-- name: GetPrincipalBySessionId :one
+SELECT
+    users.id, users.username, users.email, users.password, users.created_at, users.modified_at, users.role
+FROM
+    users
+JOIN
+    sessions ON users.id = sessions.user_id
+WHERE
+    sessions.token = ?1 AND
+    sessions.absolute_expiry > datetime('now') AND
+    sessions.idle_expiry > datetime('now')
+`
+
+// GetPrincipalBySessionId retrieves a principal by session token
+func (q *Queries) GetPrincipalBySessionId(ctx context.Context, token string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getPrincipalBySessionId, token)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+		&i.ModifiedAt,
+		&i.Role,
+	)
+	return i, err
+}
+
 const getSessionById = `-- name: GetSessionById :one
 SELECT
     user_id, token, absolute_expiry, idle_expiry
@@ -87,34 +116,6 @@ func (q *Queries) GetSessionById(ctx context.Context, token string) (Session, er
 		&i.Token,
 		&i.AbsoluteExpiry,
 		&i.IdleExpiry,
-	)
-	return i, err
-}
-
-const getUserBySessionId = `-- name: GetUserBySessionId :one
-SELECT
-    users.id, users.username, users.email, users.password, users.created_at, users.modified_at
-FROM
-    users
-JOIN
-    sessions ON users.id = sessions.user_id
-WHERE
-    sessions.token = ?1 AND
-    sessions.absolute_expiry > datetime('now') AND
-    sessions.idle_expiry > datetime('now')
-`
-
-// GetUserBySessionId retrieves a user by session token
-func (q *Queries) GetUserBySessionId(ctx context.Context, token string) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserBySessionId, token)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.Email,
-		&i.Password,
-		&i.CreatedAt,
-		&i.ModifiedAt,
 	)
 	return i, err
 }

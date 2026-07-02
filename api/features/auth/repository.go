@@ -31,11 +31,11 @@ type sqlRepository struct {
 
 // CreatePrincipal implements [principalRepository].
 func (s *sqlRepository) CreatePrincipal(ctx context.Context, principal Principal) (*Principal, error) {
-	userModel, err := s.queries.CreateUser(ctx, PrincipalToCreateUserParam(principal))
+	userModel, err := s.queries.CreateUser(ctx, PrincipalToCreateParam(principal))
 	if err != nil {
 		return nil, err
 	}
-	return new(UserToPrincipal(userModel)), nil
+	return new(ModelToPrincipal(userModel)), nil
 }
 
 // FindPrincipalByEmailOrUsername implements [principalRepository].
@@ -47,7 +47,7 @@ func (s *sqlRepository) FindPrincipalByEmailOrUsername(ctx context.Context, toke
 		}
 		return nil, err
 	}
-	return new(UserToPrincipal(userModel)), nil
+	return new(ModelToPrincipal(userModel)), nil
 }
 
 // ------ sessionStore --------------------------------------
@@ -89,14 +89,14 @@ func (s *sqlSessionStore) DeleteSession(ctx context.Context, sessionToken string
 
 // GetSession implements [sessionStore].
 func (s *sqlSessionStore) GetSession(ctx context.Context, sessionToken string) (*Principal, error) {
-	sessionModel, err := s.queries.GetUserBySessionId(ctx, sessionToken)
+	sessionModel, err := s.queries.GetPrincipalBySessionId(ctx, sessionToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errSessionNotFound
 		}
 		return nil, err
 	}
-	return new(UserToPrincipal(sessionModel)), nil
+	return new(ModelToPrincipal(sessionModel)), nil
 }
 
 // RefreshSession implements [sessionStore].

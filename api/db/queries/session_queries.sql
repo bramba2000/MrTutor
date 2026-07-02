@@ -36,10 +36,10 @@ SET idle_expiry = :idle_expiry
 WHERE
     token = :token;
 
--- name: GetUserBySessionId :one
--- GetUserBySessionId retrieves a user by session token
+-- name: GetPrincipalBySessionId :one
+-- GetPrincipalBySessionId retrieves a principal by session token
 SELECT
-    users.*
+    users.id, users.username, users.email, users.password, users.created_at, users.modified_at, users.role
 FROM
     users
 JOIN

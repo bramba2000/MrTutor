@@ -15,7 +15,7 @@ INSERT INTO
 VALUES
     (?1, ?2, ?3)
 RETURNING
-    id, username, email, password, created_at, modified_at
+    id, username, email, password, created_at, modified_at, role
 `
 
 type CreateUserParams struct {
@@ -35,13 +35,14 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Password,
 		&i.CreatedAt,
 		&i.ModifiedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-    id, username, email, password, created_at, modified_at
+    id, username, email, password, created_at, modified_at, role
 FROM
     users
 WHERE
@@ -62,13 +63,14 @@ func (q *Queries) GetUserByEmailOrUsername(ctx context.Context, input string) (U
 		&i.Password,
 		&i.CreatedAt,
 		&i.ModifiedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getUserById = `-- name: GetUserById :one
 SELECT
-    id, username, email, password, created_at, modified_at
+    id, username, email, password, created_at, modified_at, role
 FROM
     users
 WHERE
@@ -88,6 +90,7 @@ func (q *Queries) GetUserById(ctx context.Context, id int64) (User, error) {
 		&i.Password,
 		&i.CreatedAt,
 		&i.ModifiedAt,
+		&i.Role,
 	)
 	return i, err
 }
@@ -102,7 +105,7 @@ SET
 WHERE
     id = ?4
 RETURNING
-    id, username, email, password, created_at, modified_at
+    id, username, email, password, created_at, modified_at, role
 `
 
 type UpdateUserParams struct {
@@ -128,6 +131,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Password,
 		&i.CreatedAt,
 		&i.ModifiedAt,
+		&i.Role,
 	)
 	return i, err
 }

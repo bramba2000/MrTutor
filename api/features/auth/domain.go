@@ -13,14 +13,23 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type UserType string
+
+const (
+	AdminUserType   UserType = "ADMIN"
+	StudentUserType UserType = "STUDENT"
+	TutorUserType   UserType = "TUTOR"
+)
+
 // Principal represent an authenticated entity in the system
 type Principal struct {
-	ID             int64
-	Username       string
-	Email          string
-	HashedPassword string `json:"-"`
-	CreateAt       time.Time
-	ModifiedAt     time.Time
+	ID             int64     `json:"id"`
+	Username       string    `json:"username"`
+	Email          string    `json:"email"`
+	HashedPassword string    `json:"-"`
+	Role           UserType  `json:"role"`
+	CreateAt       time.Time `json:"createAt"`
+	ModifiedAt     time.Time `json:"modifiedAt"`
 }
 
 func (p Principal) VerifyPassword(password string) bool {

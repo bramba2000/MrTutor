@@ -23,9 +23,9 @@ type RegisterResponse struct {
 }
 
 type RegisterRequest struct {
-	Username string
-	Email    string
-	Password string
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func (r RegisterRequest) Validate() error {
@@ -38,8 +38,8 @@ func (r RegisterRequest) Validate() error {
 
 type LoginRequest struct {
 	// Token represent either username or password for login attempt
-	Token    string
-	Password string
+	Token    string `json:"token"`
+	Password string `json:"password"`
 }
 
 func (r LoginRequest) Validate() error {
@@ -48,6 +48,8 @@ func (r LoginRequest) Validate() error {
 		validation.Field("password", validation.Required(r.Password)),
 	)
 }
+
+// ----- implementation -------------------------------------------------------
 
 type serviceImpl struct {
 	repository   principalRepository

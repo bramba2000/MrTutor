@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN role TEXT CHECK (role IN ('ADMIN', 'STUDENT', 'TUTOR'));
