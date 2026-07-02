@@ -52,6 +52,62 @@ export class ApiError extends Error {
 }
 
 // ---------------------------------------------------------------------------
+// Validation errors
+// ---------------------------------------------------------------------------
+
+/**
+ * A single field-level validation problem returned by the API.
+ * Mirrors the Go `validation.Problem` type.
+ */
+export interface ValidationProblem {
+  field: string;
+  message: string;
+}
+
+/**
+ * Body the API returns for a 400 validation failure.
+ * Mirrors the Go `validation.Error` type.
+ */
+export interface ValidationErrorBody {
+  problems: ValidationProblem[];
+}
+
+/**
+ * Extract field-level validation problems from a rejected api.* error.
+ *
+ * Returns the `problems` array when `error` is a 400 ApiError carrying a
+ * `{ problems: [...] }` body, otherwise null — so callers can branch:
+ *
+ *   const problems = validationProblems(error);
+ *   if (problems) form.setErrors(problemsToFieldErrors(problems));
+ */
+export function validationProblems(error: unknown): ValidationProblem[] | null {
+  if (!(error instanceof ApiError) || error.status !== 400) return null;
+  const body = error.body;
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    Array.isArray((body as Partial<ValidationErrorBody>).problems)
+  ) {
+    return (body as ValidationErrorBody).problems;
+  }
+  return null;
+}
+
+/**
+ * Collapse validation problems into a `field → message` record suitable for a
+ * form library's `setErrors`. Multiple problems for the same field are joined.
+ */
+export function problemsToFieldErrors(
+  problems: ValidationProblem[],
+): Record<string, string> {
+  return problems.reduce<Record<string, string>>((acc, { field, message }) => {
+    acc[field] = acc[field] ? `${acc[field]}; ${message}` : message;
+    return acc;
+  }, {});
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 

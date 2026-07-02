@@ -253,6 +253,12 @@ try {
 }
 ```
 
+**Validation errors**: a `400` carries a JSON body of per-field problems (the Go
+`validation.Error`). Use `validationProblems(error)` (from `#/lib/api`) to narrow it —
+it returns the `{ field, message }[]` for a 400 ApiError with a `problems` body, else
+`null`. `problemsToFieldErrors(problems)` collapses them into a `field → message`
+record for a form's `setErrors` (see `RegisterPage.tsx`).
+
 Go request structs have no `json` tags — field names are PascalCase. Match them in
 request bodies: `{ Token, Password }`, not `{ token, password }`.
 
