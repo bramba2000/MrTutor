@@ -1,4 +1,4 @@
-import { Button, TextInput } from "@mantine/core";
+import { Alert, Button, Paper, TextInput } from "@mantine/core";
 import { useNavigate } from "@tanstack/react-router";
 import { TitleLayout } from "../components/TitleLayout";
 import { Route } from "#/routes/auth/register";
@@ -8,6 +8,8 @@ import { CustomLink } from "#/components/CustomLink";
 import { useForm } from "@mantine/form";
 import type { RegisterCredentials } from "../api";
 import { isUserRole, safeRedirect, UserRole } from "../constants";
+import { problemsToFieldErrors, validationProblems } from "#/lib/api";
+import { useState } from "react";
 
 interface searchParams {
   redirect: string;
@@ -24,9 +26,10 @@ export function validateSearchParams(
 }
 
 export function RegisterPage() {
-  const { redirect } = Route.useSearch();
+  const { redirect, role } = Route.useSearch();
   const navigate = useNavigate();
   const register = useRegister();
+  const [globalError, setGlobalError] = useState("");
   const form = useForm({
     mode: "uncontrolled",
     initialValues: {
@@ -48,15 +51,28 @@ export function RegisterPage() {
     },
   });
 
+  function handleError(error: Error) {
+    const problems = validationProblems(error);
+    if (problems) {
+      const fieldErrors = problemsToFieldErrors(problems);
+      form.setErrors(fieldErrors);
+      if (fieldErrors.role) {
+        setGlobalError(fieldErrors.role);
+      }
+    }
+  }
+
   function handleSubmit(values: typeof form.values) {
     register.mutate(
       {
         username: values.username,
         email: values.email,
         password: values.password,
+        role: role,
       },
       {
         onSuccess: () => navigate({ href: redirect }),
+        onError: handleError,
       },
     );
   }
@@ -75,6 +91,15 @@ export function RegisterPage() {
         className={classes["auth-form"]}
         onSubmit={form.onSubmit(handleSubmit)}
       >
+        <Alert
+          variant="light"
+          color="red"
+          title="Error"
+          hidden={!globalError}
+          style={{ textTransform: "capitalize" }}
+        >
+          {globalError}
+        </Alert>
         <TextInput
           label="Username"
           placeholder="Enter your username"

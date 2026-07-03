@@ -23,9 +23,10 @@ type RegisterResponse struct {
 }
 
 type RegisterRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username string   `json:"username"`
+	Email    string   `json:"email"`
+	Password string   `json:"password"`
+	Role     UserRole `json:"role"`
 }
 
 func (r RegisterRequest) Validate() error {
@@ -33,6 +34,7 @@ func (r RegisterRequest) Validate() error {
 		validation.Field("username", validation.Required(r.Username)),
 		validation.Field("email", validation.Required(r.Email), validation.Email(r.Email)),
 		validation.Field("password", validation.Required(r.Password), validation.Password(r.Password)),
+		validation.Field("role", r.Role.Valid()),
 	)
 }
 
@@ -124,6 +126,7 @@ func (s *serviceImpl) Register(ctx context.Context, req RegisterRequest) (*Regis
 		Username:       req.Username,
 		Email:          req.Email,
 		HashedPassword: hashedPassword,
+		Role:           req.Role,
 	})
 	if err != nil {
 		return nil, err

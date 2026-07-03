@@ -31,7 +31,7 @@ type sqlRepository struct {
 
 // CreatePrincipal implements [principalRepository].
 func (s *sqlRepository) CreatePrincipal(ctx context.Context, principal Principal) (*Principal, error) {
-	userModel, err := s.queries.CreateUser(ctx, PrincipalToCreateParam(principal))
+	userModel, err := s.queries.CreatePrincipal(ctx, PrincipalToCreateParam(principal))
 	if err != nil {
 		return nil, err
 	}

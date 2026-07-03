@@ -5,7 +5,6 @@
 package queries
 
 import (
-	"database/sql"
 	"time"
 )
 
@@ -17,11 +16,11 @@ type Session struct {
 }
 
 type User struct {
-	ID         int64          `json:"id"`
-	Username   string         `json:"username"`
-	Email      string         `json:"email"`
-	Password   string         `json:"password"`
-	CreatedAt  time.Time      `json:"created_at"`
-	ModifiedAt time.Time      `json:"modified_at"`
-	Role       sql.NullString `json:"role"`
+	ID         int64     `json:"id"`
+	Username   string    `json:"username"`
+	Email      string    `json:"email"`
+	Password   string    `json:"password"`
+	CreatedAt  time.Time `json:"created_at"`
+	ModifiedAt time.Time `json:"modified_at"`
+	Role       string    `json:"role"`
 }

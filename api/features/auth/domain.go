@@ -13,13 +13,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type UserType string
+type UserRole string
 
 const (
-	AdminUserType   UserType = "ADMIN"
-	StudentUserType UserType = "STUDENT"
-	TutorUserType   UserType = "TUTOR"
+	AdminUserRole   UserRole = "ADMIN"
+	StudentUserRole UserRole = "STUDENT"
+	TutorUserRole   UserRole = "TUTOR"
 )
+
+func (u UserRole) Valid() error {
+	if u != AdminUserRole && u != StudentUserRole && u != TutorUserRole {
+		return fmt.Errorf("invalid user role: %s", u)
+	}
+	return nil
+}
 
 // Principal represent an authenticated entity in the system
 type Principal struct {
@@ -27,7 +34,7 @@ type Principal struct {
 	Username       string    `json:"username"`
 	Email          string    `json:"email"`
 	HashedPassword string    `json:"-"`
-	Role           UserType  `json:"role"`
+	Role           UserRole  `json:"role"`
 	CreateAt       time.Time `json:"createAt"`
 	ModifiedAt     time.Time `json:"modifiedAt"`
 }

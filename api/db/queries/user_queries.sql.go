@@ -9,24 +9,30 @@ import (
 	"context"
 )
 
-const createUser = `-- name: CreateUser :one
+const createPrincipal = `-- name: CreatePrincipal :one
 INSERT INTO
-    users (email, username, password)
+    users (email, username, password, role)
 VALUES
-    (?1, ?2, ?3)
+    (?1, ?2, ?3, ?4)
 RETURNING
     id, username, email, password, created_at, modified_at, role
 `
 
-type CreateUserParams struct {
+type CreatePrincipalParams struct {
 	Email    string `json:"email"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Role     string `json:"role"`
 }
 
-// CreateUser creates a new user
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Username, arg.Password)
+// CreatePrincipal creates a new user
+func (q *Queries) CreatePrincipal(ctx context.Context, arg CreatePrincipalParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createPrincipal,
+		arg.Email,
+		arg.Username,
+		arg.Password,
+		arg.Role,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -95,32 +101,35 @@ func (q *Queries) GetUserById(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
-const updateUser = `-- name: UpdateUser :one
+const updatePrincipal = `-- name: UpdatePrincipal :one
 UPDATE users
 SET
-    email = ?1,
-    username = ?2,
-    password = ?3,
+    email = COALESCE(?1, email),
+    username = COALESCE(?2, username),
+    password = COALESCE(?3, password),
+    role = COALESCE(?4, role),
     modified_at = datetime()
 WHERE
-    id = ?4
+    id = ?5
 RETURNING
     id, username, email, password, created_at, modified_at, role
 `
 
-type UpdateUserParams struct {
+type UpdatePrincipalParams struct {
 	Email    string `json:"email"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Role     string `json:"role"`
 	ID       int64  `json:"id"`
 }
 
-// UpdateUser updates user information
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUser,
+// UpdatePrincipal updates user information
+func (q *Queries) UpdatePrincipal(ctx context.Context, arg UpdatePrincipalParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updatePrincipal,
 		arg.Email,
 		arg.Username,
 		arg.Password,
+		arg.Role,
 		arg.ID,
 	)
 	var i User

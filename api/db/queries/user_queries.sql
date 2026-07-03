@@ -21,22 +21,23 @@ WHERE
 LIMIT
     1;
 
--- name: CreateUser :one
--- CreateUser creates a new user
+-- name: CreatePrincipal :one
+-- CreatePrincipal creates a new user
 INSERT INTO
-    users (email, username, password)
+    users (email, username, password, role)
 VALUES
-    (:email, :username, :password)
+    (:email, :username, :password, :role)
 RETURNING
     *;
 
--- name: UpdateUser :one
--- UpdateUser updates user information
+-- name: UpdatePrincipal :one
+-- UpdatePrincipal updates user information
 UPDATE users
 SET
-    email = :email,
-    username = :username,
-    password = :password,
+    email = COALESCE(:email, email),
+    username = COALESCE(:username, username),
+    password = COALESCE(:password, password),
+    role = COALESCE(:role, role),
     modified_at = datetime()
 WHERE
     id = :id

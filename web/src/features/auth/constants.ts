@@ -1,7 +1,7 @@
 export enum UserRole {
-  Admin = "Admin",
-  Student = "Student",
-  Tutor = "Tutor",
+  Admin = "ADMIN",
+  Student = "STUDENT",
+  Tutor = "TUTOR",
 }
 
 export function isUserRole(value: any): value is UserRole {

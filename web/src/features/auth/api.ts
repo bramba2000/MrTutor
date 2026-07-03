@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api, ApiError } from "#/lib/api";
+import type { UserRole } from "./constants";
 
 // Principal mirrors the /auth/me JSON response (lowercase field names from the server).
 export interface Principal {
@@ -67,6 +68,7 @@ export interface RegisterCredentials {
   username: string;
   email: string;
   password: string;
+  role: UserRole;
 }
 
 export async function register(
