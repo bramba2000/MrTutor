@@ -27,7 +27,7 @@ export function useSignout() {
       queryClient.setQueryData(authKeys.me, null);
       // Drop all cached data so a subsequent login starts with a clean cache.
       queryClient.clear();
-      navigate({ to: "/auth/login" });
+      navigate({ to: "/auth/login", search: { redirect: "/" } });
     },
   });
 }

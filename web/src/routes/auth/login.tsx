@@ -1,15 +1,12 @@
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import {
-  createFileRoute,
-  redirect,
-  type SearchSchemaInput,
-} from "@tanstack/react-router";
-import { LoginPage } from "#/features/auth/pages/LoginPage";
+  validateSearchParams,
+  LoginPage,
+} from "#/features/auth/pages/LoginPage";
 import { meQueryOptions } from "#/features/auth/api";
 
 export const Route = createFileRoute("/auth/login")({
-  validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
-  }),
+  validateSearch: validateSearchParams,
   beforeLoad: async ({ context }) => {
     // Already logged-in users get bounced to the app root.
     const user = await context.queryClient.ensureQueryData(meQueryOptions());

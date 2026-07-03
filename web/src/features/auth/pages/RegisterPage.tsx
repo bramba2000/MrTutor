@@ -1,4 +1,5 @@
 import { Button, TextInput } from "@mantine/core";
+import { useNavigate } from "@tanstack/react-router";
 import { TitleLayout } from "../components/TitleLayout";
 import { Route } from "#/routes/auth/register";
 import classes from "./AuthPage.module.css";
@@ -6,10 +7,25 @@ import { useRegister } from "../mutations";
 import { CustomLink } from "#/components/CustomLink";
 import { useForm } from "@mantine/form";
 import type { RegisterCredentials } from "../api";
+import { isUserRole, safeRedirect, UserRole } from "../constants";
+
+interface searchParams {
+  redirect: string;
+  role: UserRole;
+}
+
+export function validateSearchParams(
+  search: Record<string, unknown>,
+): searchParams {
+  return {
+    redirect: safeRedirect(search.redirect),
+    role: isUserRole(search.role) ? search.role : UserRole.Student,
+  };
+}
 
 export function RegisterPage() {
   const { redirect } = Route.useSearch();
-  const navigate = Route.useNavigate();
+  const navigate = useNavigate();
   const register = useRegister();
   const form = useForm({
     mode: "uncontrolled",
@@ -40,7 +56,7 @@ export function RegisterPage() {
         password: values.password,
       },
       {
-        onSuccess: () => navigate({ to: redirect ?? "/" }),
+        onSuccess: () => navigate({ href: redirect }),
       },
     );
   }

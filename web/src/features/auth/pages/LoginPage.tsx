@@ -1,13 +1,27 @@
 import { Button, TextInput } from "@mantine/core";
+import { useNavigate } from "@tanstack/react-router";
 import { TitleLayout } from "../components/TitleLayout";
 import { Route } from "#/routes/auth/login";
 import classes from "./AuthPage.module.css";
 import { useLogin } from "../mutations";
 import { CustomLink } from "#/components/CustomLink";
+import { safeRedirect, UserRole } from "../constants";
+
+interface LoginPageSearchParams {
+  redirect: string;
+}
+
+export function validateSearchParams(
+  search: Record<string, unknown>,
+): LoginPageSearchParams {
+  return {
+    redirect: safeRedirect(search.redirect),
+  };
+}
 
 export function LoginPage() {
   const { redirect } = Route.useSearch();
-  const navigate = Route.useNavigate();
+  const navigate = useNavigate();
   const login = useLogin();
 
   function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
@@ -19,7 +33,7 @@ export function LoginPage() {
         token: formData.get("email") as string,
       },
       {
-        onSuccess: () => navigate({ to: redirect ?? "/" }),
+        onSuccess: () => navigate({ href: redirect }),
       },
     );
   }
@@ -29,7 +43,10 @@ export function LoginPage() {
       title="Login"
       subtitle="You don't have an account yet?"
       subtitleLink={
-        <CustomLink to={"/auth/register"} search={{ redirect }}>
+        <CustomLink
+          to={"/auth/register"}
+          search={{ redirect, role: UserRole.Student }}
+        >
           Create one
         </CustomLink>
       }
